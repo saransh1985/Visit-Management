@@ -6,7 +6,7 @@
         <name>ApexClass</name>
     </types>
     <types>
-        <members>visitWizard</members>
+        <members>visitWizardV4</members>
         <name>LightningComponentBundle</name>
     </types>
     <types>
@@ -14,7 +14,7 @@
         <name>Layout</name>
     </types>
     <types>
-        <members>Account.New_Visit</members>
+        <members>Account.New_Visit_V4</members>
         <name>QuickAction</name>
     </types>
     <version>60.0</version>
