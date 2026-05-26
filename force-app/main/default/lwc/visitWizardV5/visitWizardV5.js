@@ -240,7 +240,7 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
     }
 
     get showPrevious() {
-        return this.step > STEP_VISIT_DETAIL && !this.isActionPlanStep;
+        return this.step > STEP_RECORD_TYPE && !this.isActionPlanStep;
     }
 
     get visitDetailSectionClass() {
@@ -465,6 +465,14 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
     }
 
     handlePrevious() {
+        if (this.step === STEP_VISIT_DETAIL) {
+            this.captureVisitFormValues(false);
+            this.visitDetailLoading = false;
+            this.clearVisitFormLoadFallback();
+            this.step = STEP_RECORD_TYPE;
+            return;
+        }
+
         if (this.step > STEP_VISIT_DETAIL) {
             this.captureVisitFormValues(false);
             this.step -= 1;
