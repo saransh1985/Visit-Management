@@ -800,11 +800,12 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
             });
 
             this.showToast('Success', response.message, 'success');
+            const visitRecordId = this.createdVisitId || this.actionPlanTargetRecordId;
             this[NavigationMixin.Navigate]({
                 type: 'standard__recordPage',
                 attributes: {
-                    recordId: response.actionPlanId,
-                    objectApiName: 'ActionPlan',
+                    recordId: visitRecordId,
+                    objectApiName: 'Visit',
                     actionName: 'view'
                 }
             });
