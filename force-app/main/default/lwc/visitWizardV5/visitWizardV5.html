@@ -1,0 +1,351 @@
+<template>
+    <lightning-quick-action-panel header={panelHeader}>
+        <template if:true={isBusy}>
+            <lightning-spinner alternative-text={loadingText} size="medium"></lightning-spinner>
+        </template>
+
+        <template if:true={errorMessage}>
+            <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium" role="alert">
+                <span>{errorMessage}</span>
+            </div>
+        </template>
+
+        <div class="wizard" data-source-account-id={accountId}>
+            <div class={stepbarClass}>
+                <template for:each={steps} for:item="stepItem">
+                    <div key={stepItem.value} class={stepItem.className}>
+                        <span class="step-number">{stepItem.value}</span>
+                        <span>{stepItem.label}</span>
+                    </div>
+                </template>
+            </div>
+
+            <template if:true={isRecordTypeStep}>
+                <section>
+                    <lightning-radio-group
+                        name="visitRecordType"
+                        label="Visit Record Type"
+                        options={recordTypeOptions}
+                        value={selectedRecordTypeId}
+                        type="button"
+                        onchange={handleRecordTypeSelect}
+                    ></lightning-radio-group>
+                </section>
+            </template>
+
+            <template if:true={selectedRecordTypeId}>
+                <section class={visitDetailSectionClass}>
+                    <h2 class="slds-text-heading_small slds-m-bottom_small">Visit Details</h2>
+                    <template if:true={visitDetailLoading}>
+                        <div class="inline-loading" aria-live="polite">
+                            <lightning-spinner alternative-text="Loading Visit details" size="small"></lightning-spinner>
+                            <span>Loading Visit details</span>
+                        </div>
+                    </template>
+                    <lightning-record-edit-form
+                        class={visitFormClass}
+                        object-api-name="Visit"
+                        record-type-id={selectedRecordTypeId}
+                        onload={handleVisitFormLoad}
+                    >
+                        <lightning-messages></lightning-messages>
+                        <div class="form-grid">
+                            <lightning-input-field
+                                data-account-field
+                                field-name="AccountId"
+                                value={accountId}
+                                disabled
+                                onchange={handleAccountFieldChange}
+                            ></lightning-input-field>
+                            <template for:each={visitFields} for:item="field">
+                                <lightning-input-field
+                                    key={field.apiName}
+                                    data-visit-field
+                                    data-field={field.apiName}
+                                    field-name={field.apiName}
+                                    required={field.required}
+                                    value={field.value}
+                                    onchange={handleVisitFieldChange}
+                                ></lightning-input-field>
+                            </template>
+                        </div>
+                    </lightning-record-edit-form>
+                </section>
+            </template>
+
+            <template if:true={isVisitorStep}>
+                <section>
+                    <div class="section-header">
+                        <h2 class="slds-text-heading_small">Visitors</h2>
+                        <lightning-button
+                            label="Add"
+                            icon-name="utility:add"
+                            onclick={openUserModal}
+                        ></lightning-button>
+                    </div>
+
+                    <div class="slds-m-bottom_medium">
+                        <h3 class="slds-text-title_bold slds-m-bottom_x-small">Account Team</h3>
+                        <lightning-datatable
+                            key-field="userId"
+                            data={visitorCandidates}
+                            columns={visitorCandidateColumns}
+                            selected-rows={selectedVisitorIds}
+                            disabled-rows={lockedVisitorIds}
+                            onrowselection={handleVisitorCandidateSelection}
+                        ></lightning-datatable>
+                    </div>
+
+                    <h3 class="slds-text-title_bold slds-m-bottom_x-small">Selected Visitors</h3>
+                    <template if:true={hasSelectedVisitors}>
+                        <lightning-datatable
+                            key-field="userId"
+                            data={selectedVisitors}
+                            columns={selectedVisitorColumns}
+                            hide-checkbox-column
+                            onrowaction={handleSelectedVisitorRowAction}
+                        ></lightning-datatable>
+                    </template>
+                    <template if:false={hasSelectedVisitors}>
+                        <div class="empty-state">No visitors selected.</div>
+                    </template>
+                </section>
+            </template>
+
+            <template if:true={isVisitedPartyStep}>
+                <section>
+                    <div class="section-header">
+                        <h2 class="slds-text-heading_small">Visited Parties</h2>
+                        <lightning-button
+                            label="Add"
+                            icon-name="utility:add"
+                            onclick={openContactModal}
+                        ></lightning-button>
+                    </div>
+
+                    <template if:true={hasSelectedContacts}>
+                        <lightning-datatable
+                            key-field="contactId"
+                            data={selectedContacts}
+                            columns={selectedContactColumns}
+                            hide-checkbox-column
+                            onrowaction={handleSelectedContactRowAction}
+                        ></lightning-datatable>
+                    </template>
+                    <template if:false={hasSelectedContacts}>
+                        <div class="empty-state">No visited parties selected.</div>
+                    </template>
+                </section>
+            </template>
+
+            <template if:true={isActionPlanStep}>
+                <section>
+                    <h2 class="slds-text-heading_small slds-m-bottom_small">Action Plan</h2>
+                    <div class="form-grid">
+                        <lightning-input
+                            data-action-plan-field
+                            data-field="actionPlanName"
+                            type="text"
+                            label="Name"
+                            value={actionPlanName}
+                            required
+                            onchange={handleActionPlanFieldChange}
+                        ></lightning-input>
+                        <lightning-input
+                            data-action-plan-field
+                            data-field="actionPlanStartDate"
+                            type="date"
+                            label="Start Date"
+                            value={actionPlanStartDate}
+                            required
+                            onchange={handleActionPlanFieldChange}
+                        ></lightning-input>
+                        <lightning-input
+                            type="text"
+                            label="Target Record"
+                            value={actionPlanTargetRecordId}
+                            disabled
+                        ></lightning-input>
+                        <lightning-combobox
+                            data-action-plan-field
+                            data-field="actionPlanStatus"
+                            label="Status"
+                            value={actionPlanStatus}
+                            options={actionPlanStatusOptions}
+                            required
+                            onchange={handleActionPlanFieldChange}
+                        ></lightning-combobox>
+                    </div>
+
+                    <section class="action-plan-template-section slds-m-top_large">
+                        <h3 class="slds-text-title_bold slds-m-bottom_small">Action Plan Template</h3>
+                        <lightning-record-picker
+                            data-action-plan-field
+                            label="Action Plan Template"
+                            object-api-name="ActionPlanTemplateVersion"
+                            value={actionPlanTemplateVersionId}
+                            filter={actionPlanTemplatePickerFilter}
+                            display-info={actionPlanTemplateDisplayInfo}
+                            matching-info={actionPlanTemplateMatchingInfo}
+                            required
+                            onchange={handleActionPlanTemplateLookupChange}
+                        ></lightning-record-picker>
+
+                        <template if:true={hasRecentActionPlanTemplates}>
+                            <div class="slds-m-top_medium">
+                                <h4 class="slds-text-title slds-m-bottom_x-small">Recent Templates</h4>
+                                <lightning-datatable
+                                    key-field="templateVersionId"
+                                    data={recentActionPlanTemplates}
+                                    columns={recentActionPlanTemplateColumns}
+                                    hide-checkbox-column
+                                    onrowaction={handleRecentTemplateRowAction}
+                                ></lightning-datatable>
+                            </div>
+                        </template>
+                    </section>
+                </section>
+            </template>
+        </div>
+
+        <div slot="footer">
+            <template if:true={showPrevious}>
+                <lightning-button label="Previous" onclick={handlePrevious}></lightning-button>
+            </template>
+            <template if:true={isVisitDetailStep}>
+                <lightning-button
+                    variant="brand"
+                    label="Next"
+                    class="slds-m-left_x-small"
+                    disabled={isBusy}
+                    onclick={handleVisitDetailNext}
+                ></lightning-button>
+            </template>
+            <template if:true={isVisitorStep}>
+                <lightning-button
+                    variant="brand"
+                    label="Next"
+                    class="slds-m-left_x-small"
+                    disabled={isBusy}
+                    onclick={handleVisitorNext}
+                ></lightning-button>
+            </template>
+            <template if:true={isVisitedPartyStep}>
+                <lightning-button
+                    label="Save for later"
+                    class="slds-m-left_x-small"
+                    disabled={isBusy}
+                    onclick={handleSaveDraft}
+                ></lightning-button>
+                <lightning-button
+                    label="Add Action Plan"
+                    class="slds-m-left_x-small"
+                    disabled={isBusy}
+                    onclick={handleAddActionPlan}
+                ></lightning-button>
+                <lightning-button
+                    variant="brand"
+                    label="Submit"
+                    class="slds-m-left_x-small"
+                    disabled={isBusy}
+                    onclick={handleSubmit}
+                ></lightning-button>
+            </template>
+            <template if:true={isActionPlanStep}>
+                <lightning-button
+                    variant="brand"
+                    label="Submit"
+                    class="slds-m-left_x-small"
+                    disabled={isBusy}
+                    onclick={handleActionPlanSubmit}
+                ></lightning-button>
+            </template>
+        </div>
+    </lightning-quick-action-panel>
+
+    <template if:true={showUserModal}>
+        <section role="dialog" tabindex="-1" aria-modal="true" class="slds-modal slds-fade-in-open">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <button class="slds-button slds-button_icon slds-modal__close" title="Close" onclick={closeUserModal}>
+                        <lightning-icon icon-name="utility:close" alternative-text="Close" size="small"></lightning-icon>
+                    </button>
+                    <h2 class="slds-text-heading_medium">Add Visitor</h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <div class="lookup-row">
+                        <lightning-input
+                            type="search"
+                            label="Search Users"
+                            value={userSearchTerm}
+                            onchange={handleUserSearchTermChange}
+                            onkeyup={handleUserSearchKeyup}
+                        ></lightning-input>
+                        <lightning-button label="Search" onclick={runUserSearch}></lightning-button>
+                    </div>
+                    <div class="slds-m-top_medium">
+                        <template if:true={hasUserSearchResults}>
+                            <lightning-datatable
+                                key-field="userId"
+                                data={userSearchResults}
+                                columns={userSearchColumns}
+                                hide-checkbox-column
+                                onrowaction={handleUserSearchRowAction}
+                            ></lightning-datatable>
+                        </template>
+                        <template if:false={hasUserSearchResults}>
+                            <div class="empty-state">No active users found.</div>
+                        </template>
+                    </div>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Done" onclick={closeUserModal}></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+
+    <template if:true={showContactModal}>
+        <section role="dialog" tabindex="-1" aria-modal="true" class="slds-modal slds-fade-in-open">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <button class="slds-button slds-button_icon slds-modal__close" title="Close" onclick={closeContactModal}>
+                        <lightning-icon icon-name="utility:close" alternative-text="Close" size="small"></lightning-icon>
+                    </button>
+                    <h2 class="slds-text-heading_medium">Add Visited Party</h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <div class="lookup-row">
+                        <lightning-input
+                            type="search"
+                            label="Search Contacts"
+                            value={contactSearchTerm}
+                            onchange={handleContactSearchTermChange}
+                            onkeyup={handleContactSearchKeyup}
+                        ></lightning-input>
+                        <lightning-button label="Search" onclick={runContactSearch}></lightning-button>
+                    </div>
+                    <div class="slds-m-top_medium">
+                        <template if:true={hasContactSearchResults}>
+                            <lightning-datatable
+                                key-field="contactId"
+                                data={contactSearchResults}
+                                columns={contactSearchColumns}
+                                hide-checkbox-column
+                                onrowaction={handleContactSearchRowAction}
+                            ></lightning-datatable>
+                        </template>
+                        <template if:false={hasContactSearchResults}>
+                            <div class="empty-state">No account contacts found.</div>
+                        </template>
+                    </div>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Done" onclick={closeContactModal}></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+</template>

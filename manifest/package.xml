@@ -7,10 +7,12 @@
     </types>
     <types>
         <members>visitWizardV4</members>
+        <members>visitWizardV5</members>
         <name>LightningComponentBundle</name>
     </types>
     <types>
         <members>Account.New_Visit_V4</members>
+        <members>Account.New_Visit_V5</members>
         <name>QuickAction</name>
     </types>
     <version>60.0</version>
