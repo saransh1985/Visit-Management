@@ -7,6 +7,14 @@
       "versionName": "Version 1.0",
       "versionNumber": "1.0.0.NEXT",
       "versionDescription": "Automotive Cloud Visit wizard V4 with Visitors, Visited Parties, and optional Action Plans"
+    },
+    {
+      "path": "visit-management-v5",
+      "default": false,
+      "package": "Visit Management V5",
+      "versionName": "Version 5.0",
+      "versionNumber": "5.0.0.NEXT",
+      "versionDescription": "Automotive Cloud Visit wizard V5 with Visitors, Visited Parties, optional Action Plans, and the Account quick action"
     }
   ],
   "name": "automotive-visit-wizard",
@@ -15,6 +23,8 @@
   "sourceApiVersion": "60.0",
   "packageAliases": {
     "Visit Management": "0Hog70000000RmbCAE",
-    "Visit Management@1.0.0-5": "04tg7000000AfY9AAK"
+    "Visit Management@1.0.0-5": "04tg7000000AfY9AAK",
+    "Visit Management V5": "0Hog70000000SCPCA2",
+    "Visit Management V5@5.0.0-1": "04tg7000000AgXRAA0"
   }
 }
