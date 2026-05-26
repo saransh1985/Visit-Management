@@ -4,6 +4,16 @@ public inherited sharing class VisitWizardController {
     private static final String VISITED_PARTY_OBJECT = 'VisitedParty';
     private static final String ACTION_PLAN_OBJECT = 'ActionPlan';
     private static final String ACTION_PLAN_TEMPLATE_VERSION_OBJECT = 'ActionPlanTemplateVersion';
+    @TestVisible private static String visitObjectApiName = VISIT_OBJECT;
+    @TestVisible private static String visitorObjectApiName = VISITOR_OBJECT;
+    @TestVisible private static String visitedPartyObjectApiName = VISITED_PARTY_OBJECT;
+    @TestVisible private static String actionPlanObjectApiName = ACTION_PLAN_OBJECT;
+    @TestVisible private static String visitAccountFieldApiName = 'AccountId';
+    @TestVisible private static String visitVisitorFieldApiName = 'VisitorId';
+    @TestVisible private static String visitorVisitFieldApiName = 'VisitId';
+    @TestVisible private static String visitorAssigneeFieldApiName = 'AssigneeId';
+    @TestVisible private static String visitedPartyVisitFieldApiName = 'VisitId';
+    @TestVisible private static String visitedPartyContactFieldApiName = 'ContactId';
 
     public class RecordTypeOption {
         @AuraEnabled public String label;
@@ -104,8 +114,9 @@ public inherited sharing class VisitWizardController {
         return getAvailableVisitRecordTypes();
     }
 
+    @TestVisible
     private static List<RecordTypeOption> getAvailableVisitRecordTypes() {
-        Schema.SObjectType visitType = getObjectType(VISIT_OBJECT);
+        Schema.SObjectType visitType = getObjectType(visitObjectApiName);
         if (visitType == null) {
             throw userError('The Visit object is not available in this org. Enable Automotive Cloud Visit Management before using this component.');
         }
@@ -134,7 +145,7 @@ public inherited sharing class VisitWizardController {
 
     @AuraEnabled(cacheable=true)
     public static List<FieldMetadata> getVisitFieldMetadata(Id recordTypeId) {
-        Schema.SObjectType visitType = getRequiredObjectType(VISIT_OBJECT);
+        Schema.SObjectType visitType = getRequiredObjectType(visitObjectApiName);
         Map<String, Schema.SObjectField> fields = visitType.getDescribe().fields.getMap();
         List<FieldMetadata> metadata = new List<FieldMetadata>();
         Set<String> included = new Set<String>{ normalizeFieldName('AccountId'), normalizeFieldName('RecordTypeId'), normalizeFieldName('VisitorId') };
@@ -281,19 +292,25 @@ public inherited sharing class VisitWizardController {
         normalizeSaveRequest(request);
         validateSaveRequest(request);
 
-        Schema.SObjectType visitType = getRequiredObjectType(VISIT_OBJECT);
-        Schema.SObjectType visitorType = getRequiredObjectType(VISITOR_OBJECT);
-        Schema.SObjectType visitedPartyType = getRequiredObjectType(VISITED_PARTY_OBJECT);
+        Schema.SObjectType visitType = getRequiredObjectType(visitObjectApiName);
+        Schema.SObjectType visitorType = getRequiredObjectType(visitorObjectApiName);
+        Schema.SObjectType visitedPartyType = getRequiredObjectType(visitedPartyObjectApiName);
 
         Map<String, Schema.SObjectField> visitFields = visitType.getDescribe().fields.getMap();
         SObject visitRecord = visitType.newSObject();
         safePut(visitRecord, visitFields, 'RecordTypeId', request.recordTypeId);
-        safePut(visitRecord, visitFields, 'AccountId', request.accountId);
-        safePut(visitRecord, visitFields, 'VisitorId', request.visitorUserIds[0]);
+        safePut(visitRecord, visitFields, visitAccountFieldApiName, request.accountId);
+        safePut(visitRecord, visitFields, visitVisitorFieldApiName, request.visitorUserIds[0]);
 
         if (request.visitFields != null) {
+            Set<String> managedVisitFields = new Set<String>{
+                'Id',
+                'RecordTypeId',
+                visitAccountFieldApiName,
+                visitVisitorFieldApiName
+            };
             for (String fieldName : request.visitFields.keySet()) {
-                if (new Set<String>{ 'Id', 'AccountId', 'RecordTypeId', 'VisitorId' }.contains(fieldName)) {
+                if (managedVisitFields.contains(fieldName)) {
                     continue;
                 }
                 if (!visitFields.containsKey(fieldName)) {
@@ -354,7 +371,7 @@ public inherited sharing class VisitWizardController {
 
     @AuraEnabled(cacheable=true)
     public static ActionPlanStartInfo getActionPlanStartInfo(Id visitId) {
-        Schema.SObjectType actionPlanType = getRequiredObjectType(ACTION_PLAN_OBJECT);
+        Schema.SObjectType actionPlanType = getRequiredObjectType(actionPlanObjectApiName);
         Map<String, Schema.SObjectField> actionPlanFields = actionPlanType.getDescribe().fields.getMap();
         requireCreateableField(actionPlanFields, 'ActionPlanTemplateVersionId', ACTION_PLAN_OBJECT);
         requireCreateableField(actionPlanFields, 'TargetId', ACTION_PLAN_OBJECT);
@@ -381,6 +398,7 @@ public inherited sharing class VisitWizardController {
         }
     }
 
+    @TestVisible
     private static SaveRequest saveRequestFromJson(Object rawPayload) {
         if (!(rawPayload instanceof Map<String, Object>)) {
             return null;
@@ -401,6 +419,7 @@ public inherited sharing class VisitWizardController {
         return request;
     }
 
+    @TestVisible
     private static ActionPlanSaveRequest actionPlanRequestFromJson(Object rawPayload) {
         if (!(rawPayload instanceof Map<String, Object>)) {
             return null;
@@ -417,24 +436,29 @@ public inherited sharing class VisitWizardController {
         return request;
     }
 
+    @TestVisible
     private static Map<String, Object> mapFromJson(Object value) {
         return value instanceof Map<String, Object> ? (Map<String, Object>) value : null;
     }
 
+    @TestVisible
     private static String stringFromJson(Object value) {
         return value == null ? null : String.valueOf(value);
     }
 
+    @TestVisible
     private static Id idFromJson(Object value) {
         String rawValue = stringFromJson(value);
         return String.isBlank(rawValue) ? null : (Id) rawValue;
     }
 
+    @TestVisible
     private static Date dateFromJson(Object value) {
         String rawValue = stringFromJson(value);
         return String.isBlank(rawValue) ? null : Date.valueOf(rawValue.left(10));
     }
 
+    @TestVisible
     private static List<Id> idsFromJson(Object value) {
         List<Id> ids = new List<Id>();
         if (value == null) {
@@ -457,6 +481,7 @@ public inherited sharing class VisitWizardController {
         return ids;
     }
 
+    @TestVisible
     private static List<String> stringsFromJson(Object value) {
         List<String> strings = new List<String>();
         if (value == null) {
@@ -479,6 +504,7 @@ public inherited sharing class VisitWizardController {
         return strings;
     }
 
+    @TestVisible
     private static void validateSaveRequest(SaveRequest request) {
         if (request == null) {
             throw userError('Save request is required.');
@@ -504,10 +530,11 @@ public inherited sharing class VisitWizardController {
         assertContactsBelongToAccount(request.accountId, request.visitedContactIds);
     }
 
+    @TestVisible
     private static ActionPlanSaveResponse saveActionPlanRequest(ActionPlanSaveRequest request) {
         validateActionPlanRequest(request);
 
-        Schema.SObjectType actionPlanType = getRequiredObjectType(ACTION_PLAN_OBJECT);
+        Schema.SObjectType actionPlanType = getRequiredObjectType(actionPlanObjectApiName);
         Map<String, Schema.SObjectField> actionPlanFields = actionPlanType.getDescribe().fields.getMap();
         requireCreateableField(actionPlanFields, 'Name', ACTION_PLAN_OBJECT);
         requireCreateableField(actionPlanFields, 'StartDate', ACTION_PLAN_OBJECT);
@@ -554,6 +581,7 @@ public inherited sharing class VisitWizardController {
         }
     }
 
+    @TestVisible
     private static void validateActionPlanRequest(ActionPlanSaveRequest request) {
         if (request == null) {
             throw userError('Action Plan request is required.');
@@ -575,7 +603,7 @@ public inherited sharing class VisitWizardController {
             throw userError('Action Plan Template is required.');
         }
 
-        Schema.SObjectType visitType = getObjectType(VISIT_OBJECT);
+        Schema.SObjectType visitType = getObjectType(visitObjectApiName);
         if (visitType == null) {
             throw userError('The Visit object is not available in this org.');
         }
@@ -586,6 +614,7 @@ public inherited sharing class VisitWizardController {
         }
     }
 
+    @TestVisible
     private static void normalizeSaveRequest(SaveRequest request) {
         if (request == null) {
             return;
@@ -621,6 +650,7 @@ public inherited sharing class VisitWizardController {
         }
     }
 
+    @TestVisible
     private static Id accountIdFromVisitFields(Map<String, Object> visitFields) {
         if (visitFields == null || visitFields.isEmpty()) {
             return null;
@@ -634,6 +664,7 @@ public inherited sharing class VisitWizardController {
         return firstAccountIdFromValues(visitFields.values());
     }
 
+    @TestVisible
     private static List<Id> collectVisitedContactIds(SaveRequest request) {
         List<Id> contactIds = new List<Id>();
         if (request.visitedContactIds != null) {
@@ -649,6 +680,7 @@ public inherited sharing class VisitWizardController {
         return dedupeIdsPreserveOrder(contactIds);
     }
 
+    @TestVisible
     private static Id firstAccountIdFromValues(Iterable<Object> values) {
         if (values == null) {
             return null;
@@ -663,12 +695,14 @@ public inherited sharing class VisitWizardController {
         return null;
     }
 
+    @TestVisible
     private static Id firstAccountIdFromValue(Object value) {
         List<Id> accountIds = new List<Id>();
         addIdsFromValue(accountIds, value, '001');
         return accountIds.isEmpty() ? null : accountIds[0];
     }
 
+    @TestVisible
     private static void addIdsFromValue(List<Id> ids, Object value, String prefix) {
         if (ids == null || value == null || String.isBlank(prefix)) {
             return;
@@ -685,6 +719,7 @@ public inherited sharing class VisitWizardController {
         }
     }
 
+    @TestVisible
     private static void assertActiveUsers(List<Id> userIds) {
         Set<Id> uniqueIds = new Set<Id>(userIds);
         if (uniqueIds.isEmpty()) {
@@ -703,6 +738,7 @@ public inherited sharing class VisitWizardController {
         }
     }
 
+    @TestVisible
     private static List<Id> dedupeIdsPreserveOrder(List<Id> ids) {
         List<Id> orderedIds = new List<Id>();
         if (ids == null) {
@@ -719,6 +755,7 @@ public inherited sharing class VisitWizardController {
         return orderedIds;
     }
 
+    @TestVisible
     private static void assertContactsBelongToAccount(Id accountId, List<Id> contactIds) {
         Set<Id> uniqueIds = new Set<Id>(contactIds);
         if (uniqueIds.isEmpty()) {
@@ -737,6 +774,7 @@ public inherited sharing class VisitWizardController {
         }
     }
 
+    @TestVisible
     private static List<ActionPlanTemplateOption> recentActionPlanTemplateOptions() {
         if (
             getObjectType(ACTION_PLAN_TEMPLATE_VERSION_OBJECT) == null ||
@@ -766,6 +804,7 @@ public inherited sharing class VisitWizardController {
         return options;
     }
 
+    @TestVisible
     private static SObject actionPlanTemplateVersionForVisit(Id templateVersionId) {
         List<SObject> templateVersions = Database.query(
             'SELECT Id, Name, Status, ActionPlanTemplateId, ' +
@@ -795,6 +834,7 @@ public inherited sharing class VisitWizardController {
         return templateVersion;
     }
 
+    @TestVisible
     private static ActionPlanTemplateOption toActionPlanTemplateOption(SObject templateVersion) {
         SObject template = templateVersion.getSObject('ActionPlanTemplate');
         ActionPlanTemplateOption option = new ActionPlanTemplateOption();
@@ -809,38 +849,41 @@ public inherited sharing class VisitWizardController {
         return option;
     }
 
+    @TestVisible
     private static List<SObject> buildVisitorRecords(Schema.SObjectType visitorType, Id visitId, Set<Id> userIds, Map<Id, String> userNames) {
         Map<String, Schema.SObjectField> fields = visitorType.getDescribe().fields.getMap();
-        requireCreateableField(fields, 'VisitId', VISITOR_OBJECT);
-        requireCreateableField(fields, 'AssigneeId', VISITOR_OBJECT);
+        requireCreateableField(fields, visitorVisitFieldApiName, VISITOR_OBJECT);
+        requireCreateableField(fields, visitorAssigneeFieldApiName, VISITOR_OBJECT);
 
         List<SObject> records = new List<SObject>();
         for (Id userId : userIds) {
             SObject record = visitorType.newSObject();
-            record.put('VisitId', visitId);
-            record.put('AssigneeId', userId);
+            record.put(visitorVisitFieldApiName, visitId);
+            record.put(visitorAssigneeFieldApiName, userId);
             putNameIfCreateable(record, fields, userNames.get(userId));
             records.add(record);
         }
         return records;
     }
 
+    @TestVisible
     private static List<SObject> buildVisitedPartyRecords(Schema.SObjectType visitedPartyType, Id visitId, Set<Id> contactIds, Map<Id, String> contactNames) {
         Map<String, Schema.SObjectField> fields = visitedPartyType.getDescribe().fields.getMap();
-        requireCreateableField(fields, 'VisitId', VISITED_PARTY_OBJECT);
-        requireCreateableField(fields, 'ContactId', VISITED_PARTY_OBJECT);
+        requireCreateableField(fields, visitedPartyVisitFieldApiName, VISITED_PARTY_OBJECT);
+        requireCreateableField(fields, visitedPartyContactFieldApiName, VISITED_PARTY_OBJECT);
 
         List<SObject> records = new List<SObject>();
         for (Id contactId : contactIds) {
             SObject record = visitedPartyType.newSObject();
-            record.put('VisitId', visitId);
-            record.put('ContactId', contactId);
+            record.put(visitedPartyVisitFieldApiName, visitId);
+            record.put(visitedPartyContactFieldApiName, contactId);
             putNameIfCreateable(record, fields, contactNames.get(contactId));
             records.add(record);
         }
         return records;
     }
 
+    @TestVisible
     private static Map<Id, String> getUserNames(Set<Id> userIds) {
         Map<Id, String> namesById = new Map<Id, String>();
         if (userIds.isEmpty()) {
@@ -857,6 +900,7 @@ public inherited sharing class VisitWizardController {
         return namesById;
     }
 
+    @TestVisible
     private static Map<Id, String> getContactNames(Set<Id> contactIds) {
         Map<Id, String> namesById = new Map<Id, String>();
         if (contactIds.isEmpty()) {
@@ -873,6 +917,7 @@ public inherited sharing class VisitWizardController {
         return namesById;
     }
 
+    @TestVisible
     private static void putNameIfCreateable(SObject record, Map<String, Schema.SObjectField> fields, String nameValue) {
         if (!fields.containsKey('Name') || !fields.get('Name').getDescribe().isCreateable()) {
             return;
@@ -881,6 +926,7 @@ public inherited sharing class VisitWizardController {
         record.put('Name', String.isBlank(nameValue) ? 'Visit Participant' : nameValue.left(255));
     }
 
+    @TestVisible
     private static Boolean isRequiredCreateField(Schema.DescribeFieldResult describe) {
         return describe.isCreateable()
             && !describe.isNillable()
@@ -890,6 +936,7 @@ public inherited sharing class VisitWizardController {
             && describe.getName() != 'OwnerId';
     }
 
+    @TestVisible
     private static FieldMetadata toFieldMetadata(Schema.DescribeFieldResult describe) {
         FieldMetadata metadata = new FieldMetadata();
         metadata.apiName = describe.getName();
@@ -898,6 +945,7 @@ public inherited sharing class VisitWizardController {
         return metadata;
     }
 
+    @TestVisible
     private static List<PicklistOption> picklistOptions(Schema.SObjectField fieldToken) {
         List<PicklistOption> options = new List<PicklistOption>();
         if (fieldToken == null) {
@@ -917,6 +965,7 @@ public inherited sharing class VisitWizardController {
         return options;
     }
 
+    @TestVisible
     private static String defaultPicklistValue(Schema.SObjectField fieldToken) {
         if (fieldToken == null) {
             return null;
@@ -937,6 +986,7 @@ public inherited sharing class VisitWizardController {
         return firstActiveValue;
     }
 
+    @TestVisible
     private static Boolean isActivePicklistValue(Schema.SObjectField fieldToken, String value) {
         if (fieldToken == null || String.isBlank(value)) {
             return false;
@@ -950,10 +1000,12 @@ public inherited sharing class VisitWizardController {
         return false;
     }
 
+    @TestVisible
     private static String normalizeFieldName(String fieldName) {
         return String.isBlank(fieldName) ? '' : fieldName.toLowerCase();
     }
 
+    @TestVisible
     private static UserCandidate toUserCandidate(Id userId, SObject userRecord, String source, Boolean selected, Boolean locked) {
         UserCandidate candidate = new UserCandidate();
         candidate.userId = userId;
@@ -967,6 +1019,7 @@ public inherited sharing class VisitWizardController {
         return candidate;
     }
 
+    @TestVisible
     private static void safePut(SObject record, Map<String, Schema.SObjectField> fields, String fieldName, Object value) {
         if (value == null || !fields.containsKey(fieldName)) {
             return;
@@ -978,6 +1031,7 @@ public inherited sharing class VisitWizardController {
         }
     }
 
+    @TestVisible
     private static Object coerceValue(Object value, Schema.DisplayType fieldType) {
         if (value == null) {
             return null;
@@ -1014,6 +1068,7 @@ public inherited sharing class VisitWizardController {
         return value;
     }
 
+    @TestVisible
     private static void applyStatusForAction(SObject visitRecord, Map<String, Schema.SObjectField> fields, String action) {
         if (!fields.containsKey('Status') || !fields.get('Status').getDescribe().isCreateable()) {
             return;
@@ -1035,12 +1090,14 @@ public inherited sharing class VisitWizardController {
         }
     }
 
+    @TestVisible
     private static void requireCreateableField(Map<String, Schema.SObjectField> fields, String fieldName, String objectName) {
         if (!fields.containsKey(fieldName) || !fields.get(fieldName).getDescribe().isCreateable()) {
             throw userError(objectName + '.' + fieldName + ' is required but is not createable for the running user.');
         }
     }
 
+    @TestVisible
     private static Schema.SObjectType getRequiredObjectType(String objectName) {
         Schema.SObjectType objectType = getObjectType(objectName);
         if (objectType == null) {
@@ -1052,14 +1109,17 @@ public inherited sharing class VisitWizardController {
         return objectType;
     }
 
+    @TestVisible
     private static Schema.SObjectType getObjectType(String objectName) {
         return Schema.getGlobalDescribe().get(objectName);
     }
 
+    @TestVisible
     private static String firstDmlMessage(DmlException e) {
         return e.getNumDml() > 0 ? e.getDmlMessage(0) : e.getMessage();
     }
 
+    @TestVisible
     private static AuraHandledException userError(String message) {
         AuraHandledException error = new AuraHandledException(message);
         error.setMessage(message);

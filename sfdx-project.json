@@ -2,11 +2,19 @@
   "packageDirectories": [
     {
       "path": "force-app",
-      "default": true
+      "default": true,
+      "package": "Visit Management",
+      "versionName": "Version 1.0",
+      "versionNumber": "1.0.0.NEXT",
+      "versionDescription": "Automotive Cloud Visit wizard V4 with Visitors, Visited Parties, and optional Action Plans"
     }
   ],
   "name": "automotive-visit-wizard",
   "namespace": "",
   "sfdcLoginUrl": "https://login.salesforce.com",
-  "sourceApiVersion": "60.0"
+  "sourceApiVersion": "60.0",
+  "packageAliases": {
+    "Visit Management": "0Hog70000000RmbCAE",
+    "Visit Management@1.0.0-5": "04tg7000000AfY9AAK"
+  }
 }
