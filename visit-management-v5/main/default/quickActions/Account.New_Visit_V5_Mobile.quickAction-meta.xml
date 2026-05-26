@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<QuickAction xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Launches the V5 Visit Wizard from the Salesforce mobile app using a mobile-supported Aura action wrapper.</description>
+    <height>800</height>
+    <label>New Visit V5</label>
+    <lightningComponent>visitWizardV5MobileAction</lightningComponent>
+    <optionsCreateFeedItem>false</optionsCreateFeedItem>
+    <type>LightningComponent</type>
+    <width>800</width>
+</QuickAction>

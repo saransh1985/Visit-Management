@@ -701,7 +701,7 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
                     actionName: 'view'
                 }
             });
-            this.dispatchEvent(new CloseActionScreenEvent());
+            this.closeHostAction();
         } catch (error) {
             this.handleError(error);
         } finally {
@@ -782,7 +782,7 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
                     actionName: 'view'
                 }
             });
-            this.dispatchEvent(new CloseActionScreenEvent());
+            this.closeHostAction();
         } catch (error) {
             this.handleError(error);
         } finally {
@@ -1135,5 +1135,10 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
                 variant
             })
         );
+    }
+
+    closeHostAction() {
+        this.dispatchEvent(new CloseActionScreenEvent());
+        this.dispatchEvent(new CustomEvent('visitwizardclose', { bubbles: true, composed: true }));
     }
 }

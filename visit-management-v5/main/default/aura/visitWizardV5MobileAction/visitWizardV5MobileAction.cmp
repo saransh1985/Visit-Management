@@ -1,0 +1,3 @@
+<aura:component implements="force:hasRecordId,force:lightningQuickActionWithoutHeader" access="global">
+    <c:visitWizardV5 record-id="{!v.recordId}" onvisitwizardclose="{!c.handleClose}" />
+</aura:component>
