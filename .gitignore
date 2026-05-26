@@ -1,0 +1,15 @@
+# Salesforce local state
+.sf/
+.sfdx/
+.localdevserver/
+
+# Node/build artifacts
+node_modules/
+coverage/
+.eslintcache
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
