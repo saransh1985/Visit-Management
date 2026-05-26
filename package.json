@@ -1,0 +1,11 @@
+{
+  "name": "automotive-visit-wizard",
+  "private": true,
+  "scripts": {
+    "test:unit": "sfdx-lwc-jest --coverage",
+    "test:unit:watch": "sfdx-lwc-jest --watch"
+  },
+  "devDependencies": {
+    "@salesforce/sfdx-lwc-jest": "latest"
+  }
+}

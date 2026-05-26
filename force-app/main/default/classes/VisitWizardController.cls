@@ -192,7 +192,7 @@ public inherited sharing class VisitWizardController {
         }
 
         Map<Id, UserCandidate> candidatesByUserId = new Map<Id, UserCandidate>();
-        SObject accountRecord = Database.query('SELECT Id, OwnerId FROM Account WHERE Id = :accountId LIMIT 1');
+        SObject accountRecord = Database.query('SELECT Id, OwnerId FROM Account WHERE Id = :accountId WITH USER_MODE LIMIT 1');
         Id ownerId = (Id) accountRecord.get('OwnerId');
         SObject owner = null;
         List<User> owners = [
@@ -200,6 +200,7 @@ public inherited sharing class VisitWizardController {
             FROM User
             WHERE Id = :ownerId
             AND IsActive = true
+            WITH USER_MODE
             LIMIT 1
         ];
         if (!owners.isEmpty()) {
@@ -211,7 +212,8 @@ public inherited sharing class VisitWizardController {
             try {
                 for (SObject teamMember : Database.query(
                     'SELECT UserId, TeamMemberRole, User.Name, User.Email, User.Title, User.Department ' +
-                    'FROM AccountTeamMember WHERE AccountId = :accountId AND User.IsActive = true ORDER BY User.Name LIMIT 200'
+                    'FROM AccountTeamMember WHERE AccountId = :accountId AND User.IsActive = true ' +
+                    'WITH USER_MODE ORDER BY User.Name LIMIT 200'
                 )) {
                     Id userId = (Id) teamMember.get('UserId');
                     if (candidatesByUserId.containsKey(userId)) {
@@ -245,6 +247,7 @@ public inherited sharing class VisitWizardController {
             WHERE IsActive = true
             AND Id NOT IN :excludedIds
             AND (Name LIKE :normalizedTerm OR Email LIKE :normalizedTerm)
+            WITH USER_MODE
             ORDER BY Name
             LIMIT 25
         ]) {
@@ -272,6 +275,7 @@ public inherited sharing class VisitWizardController {
             WHERE AccountId = :accountId
             AND Id NOT IN :excludedIds
             AND (Name LIKE :normalizedTerm OR Email LIKE :normalizedTerm)
+            WITH USER_MODE
             ORDER BY Name
             LIMIT 25
         ]) {
@@ -609,7 +613,7 @@ public inherited sharing class VisitWizardController {
         }
 
         Id visitId = request.visitId;
-        if (Database.query('SELECT Id FROM Visit WHERE Id = :visitId LIMIT 1').isEmpty()) {
+        if (Database.query('SELECT Id FROM Visit WHERE Id = :visitId WITH USER_MODE LIMIT 1').isEmpty()) {
             throw userError('The selected Target Record could not be found.');
         }
     }
@@ -643,6 +647,7 @@ public inherited sharing class VisitWizardController {
             FROM Contact
             WHERE Id IN :request.visitedContactIds
             AND AccountId != null
+            WITH USER_MODE
             LIMIT 1
         ];
         if (!contacts.isEmpty()) {
@@ -731,6 +736,7 @@ public inherited sharing class VisitWizardController {
             FROM User
             WHERE Id IN :uniqueIds
             AND IsActive = true
+            WITH USER_MODE
         ];
 
         if (activeUserCount != uniqueIds.size()) {
@@ -767,6 +773,7 @@ public inherited sharing class VisitWizardController {
             FROM Contact
             WHERE Id IN :uniqueIds
             AND AccountId = :accountId
+            WITH USER_MODE
         ];
 
         if (contactCount != uniqueIds.size()) {
@@ -793,6 +800,7 @@ public inherited sharing class VisitWizardController {
                 'WHERE Status = \'Final\' ' +
                 'AND ActionPlanTemplate.Status = \'Final\' ' +
                 'AND ActionPlanTemplate.TargetEntityType = \'Visit\' ' +
+                'WITH USER_MODE ' +
                 'ORDER BY LastModifiedDate DESC ' +
                 'LIMIT 3'
             )) {
@@ -812,6 +820,7 @@ public inherited sharing class VisitWizardController {
             'ActionPlanTemplate.Status, ActionPlanTemplate.TargetEntityType ' +
             'FROM ActionPlanTemplateVersion ' +
             'WHERE Id = :templateVersionId ' +
+            'WITH USER_MODE ' +
             'LIMIT 1'
         );
 
@@ -894,6 +903,7 @@ public inherited sharing class VisitWizardController {
             SELECT Id, Name
             FROM User
             WHERE Id IN :userIds
+            WITH USER_MODE
         ]) {
             namesById.put(userRecord.Id, userRecord.Name);
         }
@@ -911,6 +921,7 @@ public inherited sharing class VisitWizardController {
             SELECT Id, Name
             FROM Contact
             WHERE Id IN :contactIds
+            WITH USER_MODE
         ]) {
             namesById.put(contactRecord.Id, contactRecord.Name);
         }

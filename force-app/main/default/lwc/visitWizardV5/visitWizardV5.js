@@ -17,7 +17,6 @@ const STEP_VISIT_DETAIL = 2;
 const STEP_VISITORS = 3;
 const STEP_VISITED_PARTIES = 4;
 const STEP_ACTION_PLAN = 5;
-const COMPONENT_SELECTOR = 'c-visit-wizard-v5';
 const ROW_ACTION_ADD = 'add';
 const ROW_ACTION_REMOVE = 'remove';
 const ROW_ACTION_SELECT_TEMPLATE = 'select_template';
@@ -168,7 +167,6 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
     loading = false;
     visitDetailLoading = false;
     visitDetailLoadedRecordTypeId;
-    visitFormLoadFallback;
     errorMessage;
     showUserModal = false;
     showContactModal = false;
@@ -201,10 +199,6 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
     connectedCallback() {
         this.setAccountId(this.extractAccountIdFromUrl());
         this.initialize();
-    }
-
-    disconnectedCallback() {
-        this.clearVisitFormLoadFallback();
     }
 
     get panelHeader() {
@@ -365,9 +359,6 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
                 [recordTypeId]: fields
             };
             this.visitFields = this.mergeVisitFieldValues(fields);
-            if (this.visitDetailLoadedRecordTypeId !== recordTypeId) {
-                this.scheduleVisitFormLoadFallback();
-            }
         } catch (error) {
             this.visitDetailLoading = false;
             this.handleError(error);
@@ -379,24 +370,7 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
     handleVisitFormLoad() {
         this.visitDetailLoadedRecordTypeId = this.selectedRecordTypeId;
         this.visitDetailLoading = false;
-        this.clearVisitFormLoadFallback();
         Promise.resolve().then(() => this.applyStoredVisitValues());
-    }
-
-    scheduleVisitFormLoadFallback() {
-        this.clearVisitFormLoadFallback();
-        this.visitFormLoadFallback = window.setTimeout(() => {
-            if (this.visitDetailLoading) {
-                this.handleVisitFormLoad();
-            }
-        }, 8000);
-    }
-
-    clearVisitFormLoadFallback() {
-        if (this.visitFormLoadFallback) {
-            window.clearTimeout(this.visitFormLoadFallback);
-            this.visitFormLoadFallback = null;
-        }
     }
 
     handleVisitDetailNext() {
@@ -468,7 +442,6 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
         if (this.step === STEP_VISIT_DETAIL) {
             this.captureVisitFormValues(false);
             this.visitDetailLoading = false;
-            this.clearVisitFormLoadFallback();
             this.step = STEP_RECORD_TYPE;
             return;
         }
@@ -911,8 +884,7 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
             this.visitFormValues.AccountId,
             this.getAccountIdFromSelectedContacts(),
             this.getInputValue(this.template.querySelector('[data-account-field]')),
-            this.extractAccountIdFromUrl(),
-            this.extractAccountIdFromDom()
+            this.extractAccountIdFromUrl()
         ];
 
         const accountId = candidates.map((candidate) => this.normalizeIdValue(candidate)).find((candidate) => !!candidate);
@@ -943,7 +915,6 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
             this.getAccountIdFromSelectedContacts(),
             this.getInputValue(this.template.querySelector('[data-account-field]')),
             this.extractAccountIdFromUrl(),
-            this.extractAccountIdFromDom(),
             window?.location?.href,
             document?.location?.href,
             document?.URL,
@@ -968,7 +939,7 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
             const encodedContext = String(state.inContextOfRef).replace(/^1\./, '');
             try {
                 candidates.push(window.atob(encodedContext));
-            } catch (ignored) {
+            } catch {
                 // Salesforce can omit or alter the encoded context depending on how the action was launched.
             }
         }
@@ -991,28 +962,10 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
             candidates.push(url.searchParams.get('c__recordId'));
             candidates.push(url.searchParams.get('backgroundContext'));
             candidates.push(url.searchParams.get('inContextOfRef'));
-        } catch (ignored) {
+        } catch {
             // Fall back to scanning the raw href below.
         }
 
-        return this.findAccountIdInStrings(candidates);
-    }
-
-    extractAccountIdFromDom() {
-        const candidates = [];
-        try {
-            document.querySelectorAll(
-                'a[href*="001"], [href*="001"], [data-recordid*="001"], [data-record-id*="001"], [data-account-id*="001"], [data-source-account-id*="001"]'
-            ).forEach((element) => {
-                candidates.push(element.getAttribute('href'));
-                candidates.push(element.getAttribute('data-recordid'));
-                candidates.push(element.getAttribute('data-record-id'));
-                candidates.push(element.getAttribute('data-account-id'));
-                candidates.push(element.getAttribute('data-source-account-id'));
-            });
-        } catch (ignored) {
-            // DOM access can be restricted in some Lightning containers.
-        }
         return this.findAccountIdInStrings(candidates);
     }
 
@@ -1047,9 +1000,6 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
         this.collectRenderedIds(this.template, ids, '[data-contact-id], lightning-button-icon[data-id], [data-id*="003"]', (element) =>
             this.normalizeContactIdValue(this.getDataValue(element, 'contactId') || this.getDataValue(element, 'id'))
         );
-        this.collectRenderedIds(document, ids, `${COMPONENT_SELECTOR} [data-contact-id], ${COMPONENT_SELECTOR} lightning-button-icon[data-id], ${COMPONENT_SELECTOR} [data-id*="003"]`, (element) =>
-            this.normalizeContactIdValue(this.getDataValue(element, 'contactId') || this.getDataValue(element, 'id'))
-        );
         return this.dedupeIds(ids);
     }
 
@@ -1060,14 +1010,6 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
     getRenderedAccountIds() {
         const accountIds = [];
         this.collectRenderedIds(this.template, accountIds, '[data-account-id], [data-source-account-id], [data-record-id], [data-recordid]', (element) =>
-            this.normalizeIdValue(
-                this.getDataValue(element, 'accountId') ||
-                this.getDataValue(element, 'sourceAccountId') ||
-                this.getDataValue(element, 'recordId') ||
-                this.getDataValue(element, 'recordid')
-            )
-        );
-        this.collectRenderedIds(document, accountIds, `${COMPONENT_SELECTOR} [data-account-id], ${COMPONENT_SELECTOR} [data-source-account-id], ${COMPONENT_SELECTOR} [data-record-id], ${COMPONENT_SELECTOR} [data-recordid]`, (element) =>
             this.normalizeIdValue(
                 this.getDataValue(element, 'accountId') ||
                 this.getDataValue(element, 'sourceAccountId') ||
@@ -1090,8 +1032,8 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
                     ids.push(normalizedId);
                 }
             });
-        } catch (ignored) {
-            // Some Lightning wrappers restrict document-level queries; state-based ids are still used above.
+        } catch {
+            // Some Lightning wrappers restrict template queries; state-based ids are still used above.
         }
     }
 
@@ -1112,7 +1054,7 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
         }
         try {
             return JSON.stringify(value);
-        } catch (ignored) {
+        } catch {
             return String(value);
         }
     }
@@ -1138,7 +1080,7 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
             let stringValue;
             try {
                 stringValue = typeof value === 'string' ? value : JSON.stringify(value);
-            } catch (ignored) {
+            } catch {
                 stringValue = String(value);
             }
             if (!stringValue) {
@@ -1149,7 +1091,7 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
                 const decodedValue = decodeURIComponent(stringValue);
                 candidates.push(decodedValue);
                 candidates.push(decodeURIComponent(decodedValue));
-            } catch (ignored) {
+            } catch {
                 // Some strings are not URL encoded.
             }
         });

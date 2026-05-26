@@ -1,0 +1,3 @@
+engines:
+  sfge:
+    java_thread_timeout: 120000

@@ -611,7 +611,8 @@ private class VisitWizardControllerTest {
         Contact contactRecord = new Contact(AccountId = accountRecord.Id, LastName = 'Describe Contact');
         insert contactRecord;
 
-        Map<String, Schema.SObjectField> accountFields = Account.SObjectType.getDescribe().fields.getMap();
+        Map<String, Schema.SObjectField> accountFields =
+            Account.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).fields.getMap();
         SObject accountSObject = Account.SObjectType.newSObject();
         VisitWizardController.safePut(accountSObject, accountFields, 'Name', 'Helper Name');
         VisitWizardController.safePut(accountSObject, accountFields, 'NumberOfEmployees', '7');
@@ -669,7 +670,11 @@ private class VisitWizardControllerTest {
 
         VisitWizardController.applyStatusForAction(accountSObject, accountFields, 'Draft');
         Case caseRecord = new Case();
-        VisitWizardController.applyStatusForAction(caseRecord, Case.SObjectType.getDescribe().fields.getMap(), 'Submit');
+        VisitWizardController.applyStatusForAction(
+            caseRecord,
+            Case.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).fields.getMap(),
+            'Submit'
+        );
 
         VisitWizardController.requireCreateableField(accountFields, 'Name', 'Account');
         try {
@@ -931,6 +936,155 @@ private class VisitWizardControllerTest {
             );
         }
         Test.stopTest();
+    }
+
+    @IsTest
+    static void recordTypeMetadataErrorsAreReadable() {
+        String originalVisitObjectApiName = VisitWizardController.visitObjectApiName;
+        try {
+            VisitWizardController.visitObjectApiName = 'Definitely_Not_Real__c';
+            try {
+                VisitWizardController.getAvailableVisitRecordTypes();
+                System.assert(false, 'Expected missing Visit object validation.');
+            } catch (AuraHandledException e) {
+                System.assert(e.getMessage().contains('Visit object is not available'));
+            }
+
+            VisitWizardController.visitObjectApiName = 'User';
+            try {
+                VisitWizardController.getAvailableVisitRecordTypes();
+                System.assert(false, 'Expected no record type validation.');
+            } catch (AuraHandledException e) {
+                System.assert(e.getMessage().contains('No Visit record types are available'));
+            }
+        } finally {
+            VisitWizardController.visitObjectApiName = originalVisitObjectApiName;
+        }
+    }
+
+    @IsTest
+    static void initialVisitorCandidatesIncludesAccountTeamRowsWhenAvailable() {
+        if (!hasObjects(new Set<String>{ 'AccountTeamMember' })) {
+            return;
+        }
+
+        List<User> otherUsers = [
+            SELECT Id
+            FROM User
+            WHERE IsActive = true
+            AND Id != :UserInfo.getUserId()
+            LIMIT 1
+        ];
+        if (otherUsers.isEmpty()) {
+            return;
+        }
+
+        Account accountRecord = new Account(Name = 'Visit Wizard Account Team');
+        insert accountRecord;
+
+        SObject teamMember = Schema.getGlobalDescribe().get('AccountTeamMember').newSObject();
+        teamMember.put('AccountId', accountRecord.Id);
+        teamMember.put('UserId', otherUsers[0].Id);
+        teamMember.put('TeamMemberRole', 'Sales Rep');
+        try {
+            insert teamMember;
+        } catch (DmlException e) {
+            return;
+        }
+
+        Test.startTest();
+        List<VisitWizardController.UserCandidate> candidates =
+            VisitWizardController.getInitialVisitorCandidates(accountRecord.Id);
+        Test.stopTest();
+
+        Boolean foundTeamMember = false;
+        for (VisitWizardController.UserCandidate candidate : candidates) {
+            if (candidate.userId == otherUsers[0].Id) {
+                foundTeamMember = true;
+                System.assertEquals(false, candidate.locked);
+                System.assert(candidate.source.contains('Account Team'));
+            }
+        }
+        System.assertEquals(true, foundTeamMember, 'Active account team users should be offered as visitors.');
+    }
+
+    @IsTest
+    static void actionPlanTemplateHelpersCoverRelationshipBranches() {
+        if (!hasObjects(new Set<String>{ 'ActionPlanTemplate', 'ActionPlanTemplateVersion' })) {
+            return;
+        }
+
+        Id templateId = (Id) '0PR000000000001';
+        Id templateVersionId = (Id) '0PT000000000001';
+        SObject templateVersionRecord = (SObject) JSON.deserialize(
+            '{"attributes":{"type":"ActionPlanTemplateVersion"},' +
+            '"Id":"0PT000000000001",' +
+            '"Name":"Published Visit Template Version",' +
+            '"ActionPlanTemplateId":"0PR000000000001",' +
+            '"Status":"Final",' +
+            '"Version":1,' +
+            '"LastModifiedDate":"2026-01-01T00:00:00.000Z",' +
+            '"ActionPlanTemplate":{' +
+                '"attributes":{"type":"ActionPlanTemplate"},' +
+                '"Id":"0PR000000000001",' +
+                '"Name":"Published Visit Template",' +
+                '"ActionPlanType":"Visit",' +
+                '"Status":"Final",' +
+                '"TargetEntityType":"Visit"' +
+            '}}',
+            SObject.class
+        );
+
+        VisitWizardController.ActionPlanTemplateOption option =
+            VisitWizardController.toActionPlanTemplateOption(templateVersionRecord);
+        System.assertEquals(templateVersionId, option.templateVersionId);
+        System.assertEquals(templateId, option.templateId);
+        System.assertEquals('Published Visit Template', option.name);
+        System.assertEquals('Visit', option.actionPlanType);
+        System.assertEquals(1, option.versionNumber);
+
+        try {
+            VisitWizardController.actionPlanTemplateVersionForVisit((Id) '0PT000000000002');
+            System.assert(false, 'Expected missing template validation.');
+        } catch (AuraHandledException e) {
+            System.assert(e.getMessage().contains('Action Plan Template could not be found'));
+        }
+    }
+
+    @IsTest
+    static void securityHelpersRejectNonCreateableObjects() {
+        if (!Schema.getGlobalDescribe().containsKey('UserRecordAccess')) {
+            return;
+        }
+
+        try {
+            VisitWizardController.getRequiredObjectType('UserRecordAccess');
+            System.assert(false, 'Expected create access validation.');
+        } catch (AuraHandledException e) {
+            System.assert(e.getMessage().contains('create access'));
+        }
+    }
+
+    @IsTest
+    static void actionPlanValidationHandlesMissingVisitObjectAfterRequiredFields() {
+        String originalVisitObjectApiName = VisitWizardController.visitObjectApiName;
+        try {
+            VisitWizardController.visitObjectApiName = 'Definitely_Not_Real__c';
+            VisitWizardController.ActionPlanSaveRequest request = new VisitWizardController.ActionPlanSaveRequest();
+            request.visitId = (Id) '0Z5000000000001';
+            request.name = 'Missing Visit Object';
+            request.startDate = Date.today();
+            request.actionPlanTemplateVersionId = (Id) '0PT000000000001';
+
+            try {
+                VisitWizardController.validateActionPlanRequest(request);
+                System.assert(false, 'Expected Visit object availability validation.');
+            } catch (AuraHandledException e) {
+                System.assert(e.getMessage().contains('Visit object is not available'));
+            }
+        } finally {
+            VisitWizardController.visitObjectApiName = originalVisitObjectApiName;
+        }
     }
 
     private static Boolean hasObjects(Set<String> objectNames) {
