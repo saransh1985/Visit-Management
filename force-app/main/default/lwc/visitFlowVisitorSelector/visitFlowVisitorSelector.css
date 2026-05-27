@@ -1,0 +1,32 @@
+.section {
+    min-width: 0;
+}
+
+.search-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 0.75rem;
+}
+
+.table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.owner-row {
+    background: var(--slds-g-color-neutral-base-95, #f3f3f3);
+}
+
+.empty-state {
+    border: 1px dashed var(--slds-g-color-border-base-1, #dddbda);
+    border-radius: 0.25rem;
+    padding: 0.75rem;
+    color: var(--slds-g-color-neutral-base-30, #444);
+}
+
+@media (max-width: 48rem) {
+    .search-row {
+        grid-template-columns: 1fr;
+    }
+}

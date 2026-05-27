@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Visit Flow Visitor Selector</masterLabel>
+    <targets>
+        <target>lightning__FlowScreen</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__FlowScreen">
+            <property name="accountId" type="String" label="Account Id" role="inputOnly" required="true"/>
+            <property name="accountOwnerId" type="String" label="Account Owner Id" role="inputOnly"/>
+            <property name="accountOwnerName" type="String" label="Account Owner Name" role="inputOnly"/>
+            <property name="selectedAccountTeamVisitorIds" type="String" label="Selected Account Team Visitor Ids"/>
+            <property name="selectedAdditionalVisitorIds" type="String" label="Selected Additional Visitor Ids"/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

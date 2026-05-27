@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Visit Flow Action Plan</masterLabel>
+    <targets>
+        <target>lightning__FlowScreen</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__FlowScreen">
+            <property name="visitId" type="String" label="Visit Id" role="inputOnly" required="true"/>
+            <property name="actionPlanName" type="String" label="Action Plan Name"/>
+            <property name="actionPlanStartDate" type="Date" label="Action Plan Start Date"/>
+            <property name="actionPlanTemplateVersionId" type="String" label="Action Plan Template Version Id"/>
+            <property name="actionPlanTargetRecordId" type="String" label="Action Plan Target Record Id"/>
+            <property name="actionPlanStatus" type="String" label="Action Plan Status"/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

@@ -1,0 +1,79 @@
+<template>
+    <template if:true={isLoading}>
+        <lightning-spinner alternative-text="Loading action plan" size="small"></lightning-spinner>
+    </template>
+
+    <template if:true={errorMessage}>
+        <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_small" role="alert">
+            <span>{errorMessage}</span>
+        </div>
+    </template>
+
+    <div class="form-grid">
+        <lightning-input
+            data-field="actionPlanName"
+            type="text"
+            label="Name"
+            value={actionPlanName}
+            required
+            onchange={handleInputChange}
+        ></lightning-input>
+        <lightning-input
+            data-field="actionPlanStartDate"
+            type="date"
+            label="Start Date"
+            value={actionPlanStartDate}
+            required
+            onchange={handleInputChange}
+        ></lightning-input>
+        <lightning-input
+            type="text"
+            label="Target Record"
+            value={targetRecordDisplay}
+            disabled
+        ></lightning-input>
+        <lightning-combobox
+            data-field="actionPlanStatus"
+            label="Status"
+            value={actionPlanStatus}
+            options={statusOptions}
+            required
+            onchange={handleInputChange}
+        ></lightning-combobox>
+    </div>
+
+    <section class="template-section slds-m-top_large">
+        <h3 class="slds-text-title_bold slds-m-bottom_small">Action Plan Template</h3>
+        <lightning-record-picker
+            data-field="actionPlanTemplateVersionId"
+            label="Action Plan Template"
+            object-api-name="ActionPlanTemplateVersion"
+            value={actionPlanTemplateVersionId}
+            filter={templateFilter}
+            display-info={templateDisplayInfo}
+            matching-info={templateMatchingInfo}
+            required
+            onchange={handleTemplateChange}
+        ></lightning-record-picker>
+
+        <template if:true={hasRecentTemplates}>
+            <div class="slds-m-top_medium">
+                <h4 class="slds-text-title slds-m-bottom_x-small">Recent Published Templates</h4>
+                <div class="recent-list">
+                    <template for:each={recentTemplates} for:item="template">
+                        <button
+                            key={template.templateVersionId}
+                            class={template.buttonClass}
+                            type="button"
+                            data-id={template.templateVersionId}
+                            onclick={handleRecentTemplateSelect}
+                        >
+                            <span>{template.name}</span>
+                            <span class="template-meta">Version {template.versionNumber}</span>
+                        </button>
+                    </template>
+                </div>
+            </div>
+        </template>
+    </section>
+</template>

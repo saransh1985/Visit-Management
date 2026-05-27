@@ -1,0 +1,142 @@
+<template>
+    <template if:true={isLoading}>
+        <lightning-spinner alternative-text="Loading visitors" size="small"></lightning-spinner>
+    </template>
+
+    <template if:true={errorMessage}>
+        <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_small" role="alert">
+            <span>{errorMessage}</span>
+        </div>
+    </template>
+
+    <section class="section">
+        <h3 class="slds-text-title_bold slds-m-bottom_x-small">Account Team Members</h3>
+        <p class="slds-text-body_small slds-m-bottom_small">
+            The Account owner is included automatically and cannot be removed.
+        </p>
+
+        <template if:true={hasTeamUsers}>
+            <div class="table-wrap">
+                <table class="slds-table slds-table_cell-buffer slds-table_bordered">
+                    <thead>
+                        <tr>
+                            <th scope="col">Select</th>
+                            <th scope="col">Name</th>
+                            <th scope="col">Title</th>
+                            <th scope="col">Email</th>
+                            <th scope="col">Source</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template for:each={teamRows} for:item="user">
+                            <tr key={user.userId} class={user.rowClass}>
+                                <td>
+                                    <lightning-input
+                                        type="checkbox"
+                                        variant="label-hidden"
+                                        data-id={user.userId}
+                                        checked={user.selected}
+                                        disabled={user.disabled}
+                                        onchange={handleTeamSelection}
+                                    ></lightning-input>
+                                </td>
+                                <td>{user.name}</td>
+                                <td>{user.title}</td>
+                                <td>{user.email}</td>
+                                <td>{user.source}</td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </template>
+        <template if:false={hasTeamUsers}>
+            <div class="empty-state">No active Account Team users were found.</div>
+        </template>
+    </section>
+
+    <section class="section slds-m-top_large">
+        <h3 class="slds-text-title_bold slds-m-bottom_x-small">Additional Active Users</h3>
+        <div class="search-row">
+            <lightning-input
+                type="search"
+                label="Search Active User"
+                value={searchTerm}
+                onchange={handleSearchTermChange}
+                onkeydown={handleSearchKeydown}
+            ></lightning-input>
+            <lightning-button
+                label="Search"
+                variant="brand"
+                disabled={isSearching}
+                onclick={handleSearch}
+            ></lightning-button>
+        </div>
+
+        <template if:true={hasSearchResults}>
+            <div class="table-wrap slds-m-top_small">
+                <table class="slds-table slds-table_cell-buffer slds-table_bordered">
+                    <thead>
+                        <tr>
+                            <th scope="col">Name</th>
+                            <th scope="col">Title</th>
+                            <th scope="col">Email</th>
+                            <th scope="col">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template for:each={searchResultRows} for:item="user">
+                            <tr key={user.userId}>
+                                <td>{user.name}</td>
+                                <td>{user.title}</td>
+                                <td>{user.email}</td>
+                                <td>
+                                    <lightning-button
+                                        label={user.buttonLabel}
+                                        data-id={user.userId}
+                                        disabled={user.disabled}
+                                        onclick={handleAddUser}
+                                    ></lightning-button>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </template>
+
+        <template if:true={hasAdditionalUsers}>
+            <h4 class="slds-text-title slds-m-top_medium slds-m-bottom_x-small">Selected Additional Users</h4>
+            <div class="table-wrap">
+                <table class="slds-table slds-table_cell-buffer slds-table_bordered">
+                    <thead>
+                        <tr>
+                            <th scope="col">Name</th>
+                            <th scope="col">Title</th>
+                            <th scope="col">Email</th>
+                            <th scope="col">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <template for:each={additionalUsers} for:item="user">
+                            <tr key={user.userId}>
+                                <td>{user.name}</td>
+                                <td>{user.title}</td>
+                                <td>{user.email}</td>
+                                <td>
+                                    <lightning-button-icon
+                                        icon-name="utility:close"
+                                        alternative-text="Remove"
+                                        title="Remove"
+                                        data-id={user.userId}
+                                        onclick={handleRemoveUser}
+                                    ></lightning-button-icon>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </template>
+    </section>
+</template>

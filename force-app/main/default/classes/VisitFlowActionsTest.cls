@@ -35,6 +35,98 @@ private class VisitFlowActionsTest {
     }
 
     @IsTest
+    static void visitorSelectorReturnsOwnerAndSearchesActiveUsers() {
+        Account accountRecord = new Account(Name = 'Visit Flow Visitor Selector Account');
+        insert accountRecord;
+
+        User currentUser = [
+            SELECT Id, Username
+            FROM User
+            WHERE Id = :UserInfo.getUserId()
+            LIMIT 1
+        ];
+        String usernameSearch = currentUser.Username.left(Math.min(4, currentUser.Username.length()));
+
+        Test.startTest();
+        List<VisitFlowUserSelectorController.UserOption> teamUsers =
+            VisitFlowUserSelectorController.getAccountTeamUsers(accountRecord.Id);
+        List<VisitFlowUserSelectorController.UserOption> searchResults =
+            VisitFlowUserSelectorController.searchActiveUsers(usernameSearch, new List<Id>());
+        List<VisitFlowUserSelectorController.UserOption> hydratedUsers =
+            VisitFlowUserSelectorController.getUsersByIds(new List<Id>{ currentUser.Id });
+        List<VisitFlowUserSelectorController.UserOption> shortSearchResults =
+            VisitFlowUserSelectorController.searchActiveUsers('a', new List<Id>());
+        List<VisitFlowUserSelectorController.UserOption> emptyHydratedUsers =
+            VisitFlowUserSelectorController.getUsersByIds(new List<Id>());
+        Test.stopTest();
+
+        System.assert(!teamUsers.isEmpty(), 'The Account owner should be returned as a selected visitor option.');
+        System.assertEquals(currentUser.Id, teamUsers[0].userId);
+        System.assertEquals(true, teamUsers[0].owner);
+        System.assert(!searchResults.isEmpty(), 'Active user search should find the running user by username.');
+        System.assertEquals(1, hydratedUsers.size(), 'Selected user hydration should return active users by id.');
+        System.assertEquals(0, shortSearchResults.size(), 'Short search terms should not return all active users.');
+        System.assertEquals(0, emptyHydratedUsers.size(), 'Empty hydration requests should return no users.');
+    }
+
+    @IsTest
+    static void actionPlanFlowActionValidatesRequiredInputsBeforeDml() {
+        System.assertEquals(0, VisitFlowActionPlanSaveAction.createActionPlan(null).size());
+
+        try {
+            VisitFlowActionPlanSaveAction.createActionPlan(
+                new List<VisitFlowActionPlanSaveAction.Request>{ null }
+            );
+            System.assert(false, 'Expected null Action Plan request validation.');
+        } catch (VisitFlowActionPlanSaveAction.VisitFlowActionPlanException e) {
+            System.assert(e.getMessage().contains('Action Plan request is required'));
+        }
+
+        VisitFlowActionPlanSaveAction.Request request = new VisitFlowActionPlanSaveAction.Request();
+        try {
+            VisitFlowActionPlanSaveAction.createActionPlan(new List<VisitFlowActionPlanSaveAction.Request>{ request });
+            System.assert(false, 'Expected required Action Plan target validation.');
+        } catch (VisitFlowActionPlanSaveAction.VisitFlowActionPlanException e) {
+            System.assert(e.getMessage().contains('Target Record is required'));
+        }
+
+        request.visitId = (Id) '0Z5000000000001';
+        try {
+            VisitFlowActionPlanSaveAction.createActionPlan(new List<VisitFlowActionPlanSaveAction.Request>{ request });
+            System.assert(false, 'Expected required Action Plan name validation.');
+        } catch (VisitFlowActionPlanSaveAction.VisitFlowActionPlanException e) {
+            System.assert(e.getMessage().contains('Action Plan Name is required'));
+        }
+
+        request.name = 'Flow Action Plan';
+        try {
+            VisitFlowActionPlanSaveAction.createActionPlan(new List<VisitFlowActionPlanSaveAction.Request>{ request });
+            System.assert(false, 'Expected required Action Plan start date validation.');
+        } catch (VisitFlowActionPlanSaveAction.VisitFlowActionPlanException e) {
+            System.assert(e.getMessage().contains('Start Date is required'));
+        }
+
+        request.startDate = Date.today();
+        try {
+            VisitFlowActionPlanSaveAction.createActionPlan(new List<VisitFlowActionPlanSaveAction.Request>{ request });
+            System.assert(false, 'Expected required Action Plan template validation.');
+        } catch (VisitFlowActionPlanSaveAction.VisitFlowActionPlanException e) {
+            System.assert(e.getMessage().contains('Action Plan Template is required'));
+        }
+
+        request.actionPlanTemplateVersionId = (Id) '0PT000000000001';
+        request.status = 'Not Started';
+        try {
+            VisitFlowActionPlanSaveAction.createActionPlan(
+                new List<VisitFlowActionPlanSaveAction.Request>{ request }
+            );
+            System.assert(false, 'Expected existing controller validation before Action Plan DML.');
+        } catch (AuraHandledException e) {
+            System.assert(String.isNotBlank(e.getMessage()), 'Controller errors should remain readable.');
+        }
+    }
+
+    @IsTest
     static void saveActionCreatesVisitGraphWhenAutomotiveObjectsExist() {
         if (!hasObjects(new Set<String>{ 'Visit', 'Visitor', 'VisitedParty', 'Location' })) {
             return;

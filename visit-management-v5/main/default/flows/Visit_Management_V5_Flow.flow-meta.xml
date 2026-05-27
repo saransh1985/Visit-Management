@@ -70,7 +70,7 @@
         <actionName>VisitFlowSaveAction</actionName>
         <actionType>apex</actionType>
         <connector>
-            <targetReference>Success</targetReference>
+            <targetReference>Check_Action_Plan</targetReference>
         </connector>
         <faultConnector>
             <targetReference>Flow_Error</targetReference>
@@ -150,8 +150,84 @@
             <name>message</name>
         </outputParameters>
     </actionCalls>
+    <actionCalls>
+        <name>Create_Action_Plan</name>
+        <label>Create Action Plan</label>
+        <locationX>176</locationX>
+        <locationY>998</locationY>
+        <actionName>VisitFlowActionPlanSaveAction</actionName>
+        <actionType>apex</actionType>
+        <connector>
+            <targetReference>Success</targetReference>
+        </connector>
+        <faultConnector>
+            <targetReference>Flow_Error</targetReference>
+        </faultConnector>
+        <flowTransactionModel>CurrentTransaction</flowTransactionModel>
+        <inputParameters>
+            <name>visitId</name>
+            <value>
+                <elementReference>createdVisitId</elementReference>
+            </value>
+        </inputParameters>
+        <inputParameters>
+            <name>targetRecordId</name>
+            <value>
+                <elementReference>createdVisitId</elementReference>
+            </value>
+        </inputParameters>
+        <inputParameters>
+            <name>name</name>
+            <value>
+                <elementReference>actionPlanName</elementReference>
+            </value>
+        </inputParameters>
+        <inputParameters>
+            <name>startDate</name>
+            <value>
+                <elementReference>actionPlanStartDate</elementReference>
+            </value>
+        </inputParameters>
+        <inputParameters>
+            <name>actionPlanTemplateVersionId</name>
+            <value>
+                <elementReference>actionPlanTemplateVersionId</elementReference>
+            </value>
+        </inputParameters>
+        <inputParameters>
+            <name>status</name>
+            <value>
+                <elementReference>actionPlanStatus</elementReference>
+            </value>
+        </inputParameters>
+        <nameSegment>VisitFlowActionPlanSaveAction</nameSegment>
+        <outputParameters>
+            <assignToReference>createdActionPlanId</assignToReference>
+            <name>actionPlanId</name>
+        </outputParameters>
+        <outputParameters>
+            <assignToReference>actionPlanMessage</assignToReference>
+            <name>message</name>
+        </outputParameters>
+    </actionCalls>
     <apiVersion>66.0</apiVersion>
     <description>Screen Flow version of the V5 Automotive Cloud Visit wizard. Creates a Visit, Visitors, and Visited Parties from an Account record action.</description>
+    <choices>
+        <name>Add_Action_Plan_No</name>
+        <choiceText>No</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>No</stringValue>
+        </value>
+    </choices>
+    <choices>
+        <name>Add_Action_Plan_Yes</name>
+        <choiceText>Yes</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>Yes</stringValue>
+        </value>
+    </choices>
     <dynamicChoiceSets>
         <name>AccountContactChoices</name>
         <dataType>String</dataType>
@@ -181,23 +257,6 @@
                 <elementReference>accountTeamUserIds</elementReference>
             </value>
         </filters>
-        <filters>
-            <field>IsActive</field>
-            <operator>EqualTo</operator>
-            <value>
-                <booleanValue>true</booleanValue>
-            </value>
-        </filters>
-        <object>User</object>
-        <sortField>Name</sortField>
-        <sortOrder>Asc</sortOrder>
-        <valueField>Id</valueField>
-    </dynamicChoiceSets>
-    <dynamicChoiceSets>
-        <name>ActiveUserChoices</name>
-        <dataType>String</dataType>
-        <displayField>Name</displayField>
-        <filterLogic>and</filterLogic>
         <filters>
             <field>IsActive</field>
             <operator>EqualTo</operator>
@@ -281,6 +340,31 @@
                 <targetReference>Select_Record_Type</targetReference>
             </connector>
             <label>Has Record Types</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <name>Check_Action_Plan</name>
+        <label>Check Action Plan</label>
+        <locationX>176</locationX>
+        <locationY>878</locationY>
+        <defaultConnector>
+            <targetReference>Success</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>No Action Plan</defaultConnectorLabel>
+        <rules>
+            <name>Add_Action_Plan_Selected</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>addActionPlanChoice</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <stringValue>Yes</stringValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>Action_Plan_Details</targetReference>
+            </connector>
+            <label>Add Action Plan</label>
         </rules>
     </decisions>
     <screens>
@@ -378,22 +462,52 @@
         </connector>
         <fields>
             <name>VisitorSummary</name>
-            <fieldText>&lt;p&gt;&lt;b&gt;Account owner is included automatically and cannot be removed:&lt;/b&gt; {!accountOwnerName}&lt;/p&gt;&lt;p&gt;&lt;b&gt;Active Account Team users:&lt;/b&gt;&lt;/p&gt;&lt;p&gt;{!accountTeamSummary}&lt;/p&gt;</fieldText>
+            <fieldText>&lt;p&gt;Select Account Team users for this Visit, then search for any additional active Salesforce users one at a time.&lt;/p&gt;</fieldText>
             <fieldType>DisplayText</fieldType>
         </fields>
         <fields>
-            <name>selectedAccountTeamVisitorIds</name>
-            <choiceReferences>AccountTeamUserChoices</choiceReferences>
-            <dataType>String</dataType>
-            <fieldText>Account Team Visitors</fieldText>
-            <fieldType>MultiSelectCheckboxes</fieldType>
-        </fields>
-        <fields>
-            <name>selectedAdditionalVisitorIds</name>
-            <choiceReferences>ActiveUserChoices</choiceReferences>
-            <dataType>String</dataType>
-            <fieldText>Additional Active Users</fieldText>
-            <fieldType>MultiSelectCheckboxes</fieldType>
+            <name>VisitorSelector</name>
+            <extensionName>c:visitFlowVisitorSelector</extensionName>
+            <fieldType>ComponentInstance</fieldType>
+            <inputParameters>
+                <name>accountId</name>
+                <value>
+                    <elementReference>accountId</elementReference>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>accountOwnerId</name>
+                <value>
+                    <elementReference>accountOwnerId</elementReference>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>accountOwnerName</name>
+                <value>
+                    <elementReference>accountOwnerName</elementReference>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>selectedAccountTeamVisitorIds</name>
+                <value>
+                    <elementReference>selectedAccountTeamVisitorIds</elementReference>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>selectedAdditionalVisitorIds</name>
+                <value>
+                    <elementReference>selectedAdditionalVisitorIds</elementReference>
+                </value>
+            </inputParameters>
+            <outputParameters>
+                <assignToReference>selectedAccountTeamVisitorIds</assignToReference>
+                <name>selectedAccountTeamVisitorIds</name>
+            </outputParameters>
+            <outputParameters>
+                <assignToReference>selectedAdditionalVisitorIds</assignToReference>
+                <name>selectedAdditionalVisitorIds</name>
+            </outputParameters>
+            <isRequired>true</isRequired>
         </fields>
         <nextOrFinishButtonLabel>Next</nextOrFinishButtonLabel>
         <showFooter>true</showFooter>
@@ -423,7 +537,99 @@
             <fieldType>MultiSelectCheckboxes</fieldType>
             <isRequired>true</isRequired>
         </fields>
+        <fields>
+            <name>addActionPlanChoice</name>
+            <choiceReferences>Add_Action_Plan_Yes</choiceReferences>
+            <choiceReferences>Add_Action_Plan_No</choiceReferences>
+            <dataType>String</dataType>
+            <defaultSelectedChoiceReference>Add_Action_Plan_No</defaultSelectedChoiceReference>
+            <fieldText>Add Action Plan after creating the Visit?</fieldText>
+            <fieldType>RadioButtons</fieldType>
+            <isRequired>true</isRequired>
+        </fields>
         <nextOrFinishButtonLabel>Finish</nextOrFinishButtonLabel>
+        <showFooter>true</showFooter>
+        <showHeader>true</showHeader>
+    </screens>
+    <screens>
+        <name>Action_Plan_Details</name>
+        <label>Action Plan</label>
+        <locationX>176</locationX>
+        <locationY>998</locationY>
+        <allowBack>false</allowBack>
+        <allowFinish>true</allowFinish>
+        <allowPause>false</allowPause>
+        <connector>
+            <targetReference>Create_Action_Plan</targetReference>
+        </connector>
+        <fields>
+            <name>ActionPlanIntro</name>
+            <fieldText>&lt;p&gt;The Visit has been created. Complete the optional Action Plan details below.&lt;/p&gt;</fieldText>
+            <fieldType>DisplayText</fieldType>
+        </fields>
+        <fields>
+            <name>ActionPlanForm</name>
+            <extensionName>c:visitFlowActionPlan</extensionName>
+            <fieldType>ComponentInstance</fieldType>
+            <inputParameters>
+                <name>visitId</name>
+                <value>
+                    <elementReference>createdVisitId</elementReference>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>actionPlanName</name>
+                <value>
+                    <elementReference>actionPlanName</elementReference>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>actionPlanStartDate</name>
+                <value>
+                    <elementReference>actionPlanStartDate</elementReference>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>actionPlanTemplateVersionId</name>
+                <value>
+                    <elementReference>actionPlanTemplateVersionId</elementReference>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>actionPlanTargetRecordId</name>
+                <value>
+                    <elementReference>actionPlanTargetRecordId</elementReference>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>actionPlanStatus</name>
+                <value>
+                    <elementReference>actionPlanStatus</elementReference>
+                </value>
+            </inputParameters>
+            <outputParameters>
+                <assignToReference>actionPlanName</assignToReference>
+                <name>actionPlanName</name>
+            </outputParameters>
+            <outputParameters>
+                <assignToReference>actionPlanStartDate</assignToReference>
+                <name>actionPlanStartDate</name>
+            </outputParameters>
+            <outputParameters>
+                <assignToReference>actionPlanTemplateVersionId</assignToReference>
+                <name>actionPlanTemplateVersionId</name>
+            </outputParameters>
+            <outputParameters>
+                <assignToReference>actionPlanTargetRecordId</assignToReference>
+                <name>actionPlanTargetRecordId</name>
+            </outputParameters>
+            <outputParameters>
+                <assignToReference>actionPlanStatus</assignToReference>
+                <name>actionPlanStatus</name>
+            </outputParameters>
+            <isRequired>true</isRequired>
+        </fields>
+        <nextOrFinishButtonLabel>Submit</nextOrFinishButtonLabel>
         <showFooter>true</showFooter>
         <showHeader>true</showHeader>
     </screens>
@@ -453,7 +659,7 @@
         <allowPause>false</allowPause>
         <fields>
             <name>SuccessMessage</name>
-            <fieldText>&lt;p&gt;{!saveMessage}&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;{!createdVisitUrl}&quot;&gt;Open created Visit&lt;/a&gt;&lt;/p&gt;</fieldText>
+            <fieldText>&lt;p&gt;{!saveMessage}&lt;/p&gt;&lt;p&gt;{!actionPlanMessage}&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;{!createdVisitUrl}&quot;&gt;Open created Visit&lt;/a&gt;&lt;/p&gt;</fieldText>
             <fieldType>DisplayText</fieldType>
         </fields>
         <showFooter>true</showFooter>
@@ -483,6 +689,48 @@
         </connector>
     </start>
     <status>Active</status>
+    <variables>
+        <name>actionPlanMessage</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>actionPlanName</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>actionPlanStartDate</name>
+        <dataType>Date</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>actionPlanStatus</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>actionPlanTargetRecordId</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>actionPlanTemplateVersionId</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
     <variables>
         <name>accountId</name>
         <dataType>String</dataType>
@@ -540,6 +788,13 @@
         <isOutput>false</isOutput>
     </variables>
     <variables>
+        <name>createdActionPlanId</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
         <name>createdVisitId</name>
         <dataType>String</dataType>
         <isCollection>false</isCollection>
@@ -576,6 +831,20 @@
     </variables>
     <variables>
         <name>saveMessage</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>selectedAccountTeamVisitorIds</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>selectedAdditionalVisitorIds</name>
         <dataType>String</dataType>
         <isCollection>false</isCollection>
         <isInput>false</isInput>
