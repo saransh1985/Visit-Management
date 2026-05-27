@@ -30,6 +30,10 @@
             <name>accountName</name>
         </outputParameters>
         <outputParameters>
+            <assignToReference>accountCustomerAccountNumber</assignToReference>
+            <name>accountCustomerAccountNumber</name>
+        </outputParameters>
+        <outputParameters>
             <assignToReference>accountOwnerId</assignToReference>
             <name>accountOwnerId</name>
         </outputParameters>
@@ -50,12 +54,74 @@
             <name>availableRecordTypeIds</name>
         </outputParameters>
         <outputParameters>
+            <assignToReference>fleetRecordTypeIds</assignToReference>
+            <name>fleetRecordTypeIds</name>
+        </outputParameters>
+        <outputParameters>
             <assignToReference>defaultRecordTypeId</assignToReference>
             <name>defaultRecordTypeId</name>
         </outputParameters>
         <outputParameters>
             <assignToReference>hasVisitRecordTypes</assignToReference>
             <name>hasVisitRecordTypes</name>
+        </outputParameters>
+        <outputParameters>
+            <assignToReference>sourceAccountLocked</assignToReference>
+            <name>sourceAccountLocked</name>
+        </outputParameters>
+        <outputParameters>
+            <assignToReference>contextErrorMessage</assignToReference>
+            <name>errorMessage</name>
+        </outputParameters>
+    </actionCalls>
+    <actionCalls>
+        <name>Get_Selected_Account_Context</name>
+        <label>Get Selected Account Context</label>
+        <locationX>176</locationX>
+        <locationY>578</locationY>
+        <actionName>VisitFlowContextAction</actionName>
+        <actionType>apex</actionType>
+        <connector>
+            <targetReference>Visitors</targetReference>
+        </connector>
+        <faultConnector>
+            <targetReference>Flow_Error</targetReference>
+        </faultConnector>
+        <flowTransactionModel>CurrentTransaction</flowTransactionModel>
+        <inputParameters>
+            <name>accountId</name>
+            <value>
+                <elementReference>accountId</elementReference>
+            </value>
+        </inputParameters>
+        <nameSegment>VisitFlowContextAction</nameSegment>
+        <outputParameters>
+            <assignToReference>accountId</assignToReference>
+            <name>accountId</name>
+        </outputParameters>
+        <outputParameters>
+            <assignToReference>accountName</assignToReference>
+            <name>accountName</name>
+        </outputParameters>
+        <outputParameters>
+            <assignToReference>accountCustomerAccountNumber</assignToReference>
+            <name>accountCustomerAccountNumber</name>
+        </outputParameters>
+        <outputParameters>
+            <assignToReference>accountOwnerId</assignToReference>
+            <name>accountOwnerId</name>
+        </outputParameters>
+        <outputParameters>
+            <assignToReference>accountOwnerName</assignToReference>
+            <name>accountOwnerName</name>
+        </outputParameters>
+        <outputParameters>
+            <assignToReference>accountTeamUserIds</assignToReference>
+            <name>accountTeamUserIds</name>
+        </outputParameters>
+        <outputParameters>
+            <assignToReference>accountTeamSummary</assignToReference>
+            <name>accountTeamSummary</name>
         </outputParameters>
         <outputParameters>
             <assignToReference>contextErrorMessage</assignToReference>
@@ -179,6 +245,30 @@
             <stringValue>Yes</stringValue>
         </value>
     </choices>
+    <choices>
+        <name>Visit_Priority_High</name>
+        <choiceText>High</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>High</stringValue>
+        </value>
+    </choices>
+    <choices>
+        <name>Visit_Priority_Low</name>
+        <choiceText>Low</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>Low</stringValue>
+        </value>
+    </choices>
+    <choices>
+        <name>Visit_Priority_Medium</name>
+        <choiceText>Medium</choiceText>
+        <dataType>String</dataType>
+        <value>
+            <stringValue>Medium</stringValue>
+        </value>
+    </choices>
     <dynamicChoiceSets>
         <name>AccountTeamUserChoices</name>
         <dataType>String</dataType>
@@ -234,6 +324,11 @@
         <name>createdVisitUrlFormula</name>
         <dataType>String</dataType>
         <expression>&quot;/&quot; &amp; {!createdVisitId}</expression>
+    </formulas>
+    <formulas>
+        <name>defaultPlannedVisitStartTime</name>
+        <dataType>DateTime</dataType>
+        <expression>{!$Flow.CurrentDateTime}</expression>
     </formulas>
     <interviewLabel>New Visit V5 Flow {!$Flow.CurrentDateTime}</interviewLabel>
     <label>New Visit V5 Flow</label>
@@ -379,6 +474,12 @@
             </value>
         </inputAssignments>
         <inputAssignments>
+            <field>VisitPriority</field>
+            <value>
+                <elementReference>visitPriority</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
             <field>RecordTypeId</field>
             <value>
                 <elementReference>selectedRecordTypeId</elementReference>
@@ -508,12 +609,61 @@
         <allowFinish>true</allowFinish>
         <allowPause>false</allowPause>
         <connector>
-            <targetReference>Visitors</targetReference>
+            <targetReference>Get_Selected_Account_Context</targetReference>
         </connector>
         <fields>
-            <name>AccountDisplay</name>
-            <fieldText>&lt;p&gt;&lt;b&gt;Account:&lt;/b&gt; {!accountName}&lt;/p&gt;</fieldText>
-            <fieldType>DisplayText</fieldType>
+            <name>AccountSelector</name>
+            <extensionName>c:visitFlowAccountSelector</extensionName>
+            <fieldType>ComponentInstance</fieldType>
+            <inputParameters>
+                <name>accountId</name>
+                <value>
+                    <elementReference>accountId</elementReference>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>accountName</name>
+                <value>
+                    <elementReference>accountName</elementReference>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>customerAccountNumber</name>
+                <value>
+                    <elementReference>accountCustomerAccountNumber</elementReference>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>selectedRecordTypeId</name>
+                <value>
+                    <elementReference>selectedRecordTypeId</elementReference>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>fleetRecordTypeIds</name>
+                <value>
+                    <elementReference>fleetRecordTypeIds</elementReference>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>sourceAccountLocked</name>
+                <value>
+                    <elementReference>sourceAccountLocked</elementReference>
+                </value>
+            </inputParameters>
+            <outputParameters>
+                <assignToReference>accountId</assignToReference>
+                <name>accountId</name>
+            </outputParameters>
+            <outputParameters>
+                <assignToReference>accountName</assignToReference>
+                <name>accountName</name>
+            </outputParameters>
+            <outputParameters>
+                <assignToReference>accountCustomerAccountNumber</assignToReference>
+                <name>customerAccountNumber</name>
+            </outputParameters>
+            <isRequired>true</isRequired>
         </fields>
         <fields>
             <name>placeId</name>
@@ -526,8 +676,22 @@
         <fields>
             <name>plannedVisitStartTime</name>
             <dataType>DateTime</dataType>
+            <defaultValue>
+                <elementReference>defaultPlannedVisitStartTime</elementReference>
+            </defaultValue>
             <fieldText>Planned Start Time</fieldText>
             <fieldType>InputField</fieldType>
+            <isRequired>true</isRequired>
+        </fields>
+        <fields>
+            <name>visitPriority</name>
+            <choiceReferences>Visit_Priority_High</choiceReferences>
+            <choiceReferences>Visit_Priority_Medium</choiceReferences>
+            <choiceReferences>Visit_Priority_Low</choiceReferences>
+            <dataType>String</dataType>
+            <defaultSelectedChoiceReference>Visit_Priority_Medium</defaultSelectedChoiceReference>
+            <fieldText>Priority</fieldText>
+            <fieldType>DropdownBox</fieldType>
             <isRequired>true</isRequired>
         </fields>
         <fields>
@@ -882,6 +1046,13 @@
         <isOutput>false</isOutput>
     </variables>
     <variables>
+        <name>accountCustomerAccountNumber</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
         <name>accountOwnerId</name>
         <dataType>String</dataType>
         <isCollection>false</isCollection>
@@ -911,6 +1082,13 @@
     </variables>
     <variables>
         <name>availableRecordTypeIds</name>
+        <dataType>String</dataType>
+        <isCollection>true</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>fleetRecordTypeIds</name>
         <dataType>String</dataType>
         <isCollection>true</isCollection>
         <isInput>false</isInput>
@@ -1043,6 +1221,13 @@
         <name>selectedVisitorUserIds</name>
         <dataType>String</dataType>
         <isCollection>true</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>sourceAccountLocked</name>
+        <dataType>Boolean</dataType>
+        <isCollection>false</isCollection>
         <isInput>false</isInput>
         <isOutput>false</isOutput>
     </variables>

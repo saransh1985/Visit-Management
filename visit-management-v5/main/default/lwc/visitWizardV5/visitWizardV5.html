@@ -50,13 +50,32 @@
                     >
                         <lightning-messages></lightning-messages>
                         <div class="form-grid">
-                            <lightning-input-field
-                                data-account-field
-                                field-name="AccountId"
-                                value={accountId}
-                                disabled
-                                onchange={handleAccountFieldChange}
-                            ></lightning-input-field>
+                            <template if:true={sourceAccountLocked}>
+                                <lightning-input
+                                    type="text"
+                                    label="Account"
+                                    value={accountDisplayValue}
+                                    disabled
+                                ></lightning-input>
+                            </template>
+                            <template if:false={sourceAccountLocked}>
+                                <lightning-record-picker
+                                    data-account-field
+                                    label="Account"
+                                    object-api-name="Account"
+                                    value={accountId}
+                                    required
+                                    onchange={handleAccountLookupChange}
+                                ></lightning-record-picker>
+                            </template>
+                            <template if:true={showCustomerAccountNumber}>
+                                <lightning-input
+                                    type="text"
+                                    label="Customer account number (CAN)"
+                                    value={customerAccountNumber}
+                                    disabled
+                                ></lightning-input>
+                            </template>
                             <template for:each={visitFields} for:item="field">
                                 <lightning-input-field
                                     key={field.apiName}

@@ -5,6 +5,7 @@ import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 
 import getVisitRecordTypes from '@salesforce/apex/VisitWizardController.getVisitRecordTypesV4';
 import getVisitFieldMetadata from '@salesforce/apex/VisitWizardController.getVisitFieldMetadata';
+import getAccountInfo from '@salesforce/apex/VisitWizardController.getAccountInfo';
 import getInitialVisitorCandidates from '@salesforce/apex/VisitWizardController.getInitialVisitorCandidates';
 import searchUsers from '@salesforce/apex/VisitWizardController.searchUsers';
 import searchContacts from '@salesforce/apex/VisitWizardController.searchContacts';
@@ -174,6 +175,9 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
     contactSearchTerm = '';
     initialized = false;
     accountId;
+    accountName;
+    customerAccountNumber;
+    sourceAccountLocked = false;
     _recordId;
 
     @api
@@ -183,7 +187,7 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
 
     set recordId(value) {
         this._recordId = value;
-        this.setAccountId(value);
+        this.setAccountId(value, { lockAccount: true });
     }
 
     @wire(CurrentPageReference)
@@ -193,11 +197,11 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
             pageReference?.state?.c__recordId ||
             pageReference?.attributes?.recordId ||
             this.extractAccountIdFromPageReference(pageReference);
-        this.setAccountId(pageRecordId);
+        this.setAccountId(pageRecordId, { lockAccount: true });
     }
 
     connectedCallback() {
-        this.setAccountId(this.extractAccountIdFromUrl());
+        this.setAccountId(this.extractAccountIdFromUrl(), { lockAccount: true });
         this.initialize();
     }
 
@@ -260,6 +264,21 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
         return this.recentActionPlanTemplates.length > 0;
     }
 
+    get accountDisplayValue() {
+        return this.accountName || this.accountId;
+    }
+
+    get showCustomerAccountNumber() {
+        return this.selectedRecordTypeIsFleet;
+    }
+
+    get selectedRecordTypeIsFleet() {
+        const recordType = this.recordTypes.find((type) => type.value === this.selectedRecordTypeId);
+        const label = (recordType?.label || '').toLowerCase();
+        const developerName = (recordType?.developerName || '').toLowerCase();
+        return label.includes('fleet') || developerName.includes('fleet');
+    }
+
     get hasSelectedVisitors() {
         return this.selectedVisitors.length > 0;
     }
@@ -314,7 +333,7 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
     }
 
     async initialize() {
-        if (this.initialized || !this.accountId) {
+        if (this.initialized) {
             return;
         }
 
@@ -323,13 +342,11 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
         this.errorMessage = null;
 
         try {
-            const [recordTypes, visitorCandidates] = await Promise.all([
-                getVisitRecordTypes(),
-                getInitialVisitorCandidates({ accountId: this.accountId })
-            ]);
+            const recordTypes = await getVisitRecordTypes();
             this.recordTypes = recordTypes;
-            this.visitorCandidates = visitorCandidates;
-            this.selectedVisitors = visitorCandidates.filter((visitor) => visitor.selected);
+            if (this.accountId) {
+                await this.refreshAccountContext();
+            }
         } catch (error) {
             this.handleError(error);
         } finally {
@@ -379,6 +396,11 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
             return;
         }
 
+        if (!this.resolveAccountId()) {
+            this.showToast('Account Required', 'Select an Account before continuing.', 'error');
+            return;
+        }
+
         if (!this.captureVisitFormValues(true)) {
             this.showToast('Missing Required Fields', 'Complete the required Visit fields before continuing.', 'error');
             return;
@@ -409,6 +431,11 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
                 AccountId: fieldValue
             };
         }
+    }
+
+    handleAccountLookupChange(event) {
+        const fieldValue = event.detail?.recordId || event.detail?.value || this.getInputValue(event.target);
+        this.setAccountId(fieldValue, { resetRelated: true });
     }
 
     handleVisitorCandidateSelection(event) {
@@ -813,10 +840,14 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
         return value !== null && value !== undefined && value !== '' && (!Array.isArray(value) || value.length > 0);
     }
 
-    setAccountId(value) {
+    setAccountId(value, options = {}) {
         const normalizedValue = this.normalizeIdValue(value);
         if (!normalizedValue) {
             return;
+        }
+
+        if (options.lockAccount) {
+            this.sourceAccountLocked = true;
         }
 
         this.visitFormValues = {
@@ -830,7 +861,40 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
 
         this.accountId = normalizedValue;
         this._recordId = normalizedValue;
-        this.initialize();
+        if (options.resetRelated) {
+            this.visitorCandidates = [];
+            this.selectedVisitors = [];
+            this.selectedContacts = [];
+            this.contactSearchResults = [];
+            this.userSearchResults = [];
+        }
+        if (this.initialized) {
+            this.refreshAccountContext();
+        } else {
+            this.initialize();
+        }
+    }
+
+    async refreshAccountContext() {
+        if (!this.accountId) {
+            return;
+        }
+
+        this.loading = true;
+        try {
+            const [accountInfo, visitorCandidates] = await Promise.all([
+                getAccountInfo({ accountId: this.accountId }),
+                getInitialVisitorCandidates({ accountId: this.accountId })
+            ]);
+            this.accountName = accountInfo?.name;
+            this.customerAccountNumber = accountInfo?.customerAccountNumber;
+            this.visitorCandidates = visitorCandidates;
+            this.selectedVisitors = visitorCandidates.filter((visitor) => visitor.selected);
+        } catch (error) {
+            this.handleError(error);
+        } finally {
+            this.loading = false;
+        }
     }
 
     captureVisitFormValues(validate) {

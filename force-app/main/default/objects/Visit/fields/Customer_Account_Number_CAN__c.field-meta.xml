@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Customer_Account_Number_CAN__c</fullName>
+    <formula>Account.Customer_Account_Number_CAN__c</formula>
+    <formulaTreatBlanksAs>BlankAsBlank</formulaTreatBlanksAs>
+    <label>Customer account number (CAN)</label>
+    <required>false</required>
+    <type>Text</type>
+</CustomField>

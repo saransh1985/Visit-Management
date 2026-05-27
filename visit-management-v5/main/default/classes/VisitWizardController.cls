@@ -27,6 +27,15 @@ public inherited sharing class VisitWizardController {
         @AuraEnabled public String apiName;
         @AuraEnabled public String label;
         @AuraEnabled public Boolean required;
+        @AuraEnabled public String value;
+    }
+
+    public class AccountInfo {
+        @AuraEnabled public Id accountId;
+        @AuraEnabled public String name;
+        @AuraEnabled public Id ownerId;
+        @AuraEnabled public String ownerName;
+        @AuraEnabled public String customerAccountNumber;
     }
 
     public class PicklistOption {
@@ -183,6 +192,40 @@ public inherited sharing class VisitWizardController {
         }
 
         return metadata;
+    }
+
+    @AuraEnabled(cacheable=true)
+    public static AccountInfo getAccountInfo(Id accountId) {
+        if (accountId == null) {
+            throw userError('Account Id is required.');
+        }
+        return queryAccountInfo(accountId);
+    }
+
+    @TestVisible
+    private static AccountInfo queryAccountInfo(Id accountId) {
+        Map<String, Schema.SObjectField> accountFields = Account.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).fields.getMap();
+        Boolean hasCanField = accountFields.containsKey('Customer_Account_Number_CAN__c');
+        String queryText = 'SELECT Id, Name, OwnerId, Owner.Name' +
+            (hasCanField ? ', Customer_Account_Number_CAN__c' : '') +
+            ' FROM Account WHERE Id = :accountId LIMIT 1';
+        List<SObject> accounts = Database.query(queryText);
+        if (accounts.isEmpty()) {
+            throw userError('The selected Account could not be found.');
+        }
+
+        SObjectAccessDecision decision = Security.stripInaccessible(AccessType.READABLE, accounts);
+        SObject accountRecord = decision.getRecords()[0];
+        AccountInfo info = new AccountInfo();
+        info.accountId = (Id) accountRecord.get('Id');
+        info.name = (String) accountRecord.get('Name');
+        info.ownerId = (Id) accountRecord.get('OwnerId');
+        SObject ownerRecord = accountRecord.getSObject('Owner');
+        info.ownerName = ownerRecord == null ? null : (String) ownerRecord.get('Name');
+        if (hasCanField && decision.getRemovedFields().get('Account')?.contains('Customer_Account_Number_CAN__c') != true) {
+            info.customerAccountNumber = (String) accountRecord.get('Customer_Account_Number_CAN__c');
+        }
+        return info;
     }
 
     @AuraEnabled(cacheable=true)
@@ -960,7 +1003,23 @@ public inherited sharing class VisitWizardController {
         metadata.apiName = describe.getName();
         metadata.label = describe.getLabel();
         metadata.required = isRequiredCreateField(describe);
+        metadata.value = defaultVisitFieldValue(describe);
         return metadata;
+    }
+
+    @TestVisible
+    private static String defaultVisitFieldValue(Schema.DescribeFieldResult describe) {
+        if (describe == null) {
+            return null;
+        }
+
+        if (describe.getName() == 'PlannedVisitStartTime') {
+            return System.now().formatGmt('yyyy-MM-dd\'T\'HH:mm:ss.SSS\'Z\'');
+        }
+        if (describe.getName() == 'VisitPriority') {
+            return 'Medium';
+        }
+        return null;
     }
 
     @TestVisible

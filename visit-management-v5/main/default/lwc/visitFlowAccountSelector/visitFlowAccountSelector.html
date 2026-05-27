@@ -1,0 +1,30 @@
+<template>
+    <template if:true={sourceAccountLocked}>
+        <lightning-input
+            type="text"
+            label="Account"
+            value={accountDisplayValue}
+            disabled
+        ></lightning-input>
+    </template>
+    <template if:false={sourceAccountLocked}>
+        <lightning-record-picker
+            label="Account"
+            object-api-name="Account"
+            value={accountId}
+            required
+            onchange={handleAccountChange}
+        ></lightning-record-picker>
+    </template>
+
+    <template if:true={showCustomerAccountNumber}>
+        <div class="slds-m-top_small">
+            <lightning-input
+                type="text"
+                label="Customer account number (CAN)"
+                value={customerAccountNumber}
+                disabled
+            ></lightning-input>
+        </div>
+    </template>
+</template>

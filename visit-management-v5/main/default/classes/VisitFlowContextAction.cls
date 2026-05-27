@@ -1,6 +1,6 @@
 public inherited sharing class VisitFlowContextAction {
     public class Request {
-        @InvocableVariable(label='Account Id' required=true)
+        @InvocableVariable(label='Account Id')
         public Id accountId;
     }
 
@@ -10,6 +10,9 @@ public inherited sharing class VisitFlowContextAction {
 
         @InvocableVariable(label='Account Name')
         public String accountName;
+
+        @InvocableVariable(label='Customer Account Number')
+        public String accountCustomerAccountNumber;
 
         @InvocableVariable(label='Account Owner Id')
         public Id accountOwnerId;
@@ -26,11 +29,17 @@ public inherited sharing class VisitFlowContextAction {
         @InvocableVariable(label='Available Visit Record Type Ids')
         public List<String> availableRecordTypeIds;
 
+        @InvocableVariable(label='Fleet Visit Record Type Ids')
+        public List<String> fleetRecordTypeIds;
+
         @InvocableVariable(label='Default Visit Record Type Id')
         public Id defaultRecordTypeId;
 
         @InvocableVariable(label='Has Visit Record Types')
         public Boolean hasVisitRecordTypes;
+
+        @InvocableVariable(label='Source Account Locked')
+        public Boolean sourceAccountLocked;
 
         @InvocableVariable(label='Error Message')
         public String errorMessage;
@@ -56,40 +65,40 @@ public inherited sharing class VisitFlowContextAction {
         Response response = new Response();
         response.accountTeamUserIds = new List<String>();
         response.availableRecordTypeIds = new List<String>();
+        response.fleetRecordTypeIds = new List<String>();
         response.hasVisitRecordTypes = false;
+        response.sourceAccountLocked = false;
+
+        populateRecordTypeContext(response);
 
         if (request == null || request.accountId == null) {
-            response.errorMessage = 'Account Id is required.';
             return response;
         }
 
-        List<Account> accounts = [
-            SELECT Id, Name, OwnerId, Owner.Name
-            FROM Account
-            WHERE Id = :request.accountId
-            WITH USER_MODE
-            LIMIT 1
-        ];
-        if (accounts.isEmpty()) {
-            response.errorMessage = 'The source Account could not be found.';
+        VisitWizardController.AccountInfo accountInfo;
+        try {
+            accountInfo = VisitWizardController.getAccountInfo(request.accountId);
+        } catch (Exception e) {
+            response.errorMessage = e.getMessage();
             return response;
         }
 
-        Account accountRecord = accounts[0];
-        response.accountId = accountRecord.Id;
-        response.accountName = accountRecord.Name;
-        response.accountOwnerId = accountRecord.OwnerId;
-        response.accountOwnerName = accountRecord.Owner == null ? null : accountRecord.Owner.Name;
+        response.accountId = accountInfo.accountId;
+        response.accountName = accountInfo.name;
+        response.accountCustomerAccountNumber = accountInfo.customerAccountNumber;
+        response.accountOwnerId = accountInfo.ownerId;
+        response.accountOwnerName = accountInfo.ownerName;
+        response.sourceAccountLocked = true;
 
         Map<Id, String> teamNamesByUserId = new Map<Id, String>();
-        if (accountRecord.OwnerId != null) {
-            teamNamesByUserId.put(accountRecord.OwnerId, accountDisplayName(response.accountOwnerName, accountRecord.OwnerId, 'Owner'));
+        if (response.accountOwnerId != null) {
+            teamNamesByUserId.put(response.accountOwnerId, accountDisplayName(response.accountOwnerName, response.accountOwnerId, 'Owner'));
         }
 
         for (AccountTeamMember teamMember : [
             SELECT UserId, User.Name, TeamMemberRole
             FROM AccountTeamMember
-            WHERE AccountId = :accountRecord.Id
+            WHERE AccountId = :response.accountId
             AND User.IsActive = true
             WITH USER_MODE
             ORDER BY User.Name
@@ -106,8 +115,6 @@ public inherited sharing class VisitFlowContextAction {
         response.accountTeamSummary = summaryLines.isEmpty()
             ? 'No active Account Team users were found. The Account owner is still included automatically when available.'
             : String.join(summaryLines, '\n');
-
-        populateRecordTypeContext(response);
         return response;
     }
 
@@ -130,6 +137,9 @@ public inherited sharing class VisitFlowContextAction {
 
             String recordTypeId = String.valueOf(info.getRecordTypeId());
             response.availableRecordTypeIds.add(recordTypeId);
+            if (isFleetRecordType(info)) {
+                response.fleetRecordTypeIds.add(recordTypeId);
+            }
             if (info.isDefaultRecordTypeMapping()) {
                 response.defaultRecordTypeId = info.getRecordTypeId();
             }
@@ -143,5 +153,12 @@ public inherited sharing class VisitFlowContextAction {
         if (!response.hasVisitRecordTypes) {
             response.errorMessage = 'No Visit record types are available for your user. Ask your Salesforce admin to assign a Visit record type.';
         }
+    }
+
+    private static Boolean isFleetRecordType(Schema.RecordTypeInfo info) {
+        String label = info.getName();
+        String developerName = info.getDeveloperName();
+        return (label != null && label.toLowerCase().contains('fleet')) ||
+            (developerName != null && developerName.toLowerCase().contains('fleet'));
     }
 }

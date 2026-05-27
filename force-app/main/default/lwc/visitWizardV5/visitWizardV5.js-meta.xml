@@ -5,6 +5,8 @@
     <masterLabel>Visit Wizard V5</masterLabel>
     <description>Create Automotive Cloud Visit records with Visitors and Visited Parties from an Account action. V5 uses more standard Lightning components and improved Visit detail loading.</description>
     <targets>
+        <target>lightning__AppPage</target>
+        <target>lightning__HomePage</target>
         <target>lightning__RecordAction</target>
     </targets>
     <targetConfigs>

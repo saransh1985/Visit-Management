@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>60.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Visit Flow Account Selector</masterLabel>
+    <description>Selects or displays the source Account for the V5 Visit Flow.</description>
+    <targets>
+        <target>lightning__FlowScreen</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__FlowScreen">
+            <property name="accountId" type="String" label="Account Id"/>
+            <property name="accountName" type="String" label="Account Name"/>
+            <property name="customerAccountNumber" type="String" label="Customer Account Number"/>
+            <property name="selectedRecordTypeId" type="String" label="Selected Visit Record Type Id"/>
+            <property name="fleetRecordTypeIds" type="String[]" label="Fleet Visit Record Type Ids"/>
+            <property name="sourceAccountLocked" type="Boolean" label="Source Account Locked"/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

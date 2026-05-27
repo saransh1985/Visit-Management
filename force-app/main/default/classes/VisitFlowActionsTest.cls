@@ -3,6 +3,9 @@ private class VisitFlowActionsTest {
     @IsTest
     static void contextActionReturnsAccountAndVisitRecordTypeContext() {
         Account accountRecord = new Account(Name = 'Visit Flow Context Account');
+        if (Account.SObjectType.getDescribe().fields.getMap().containsKey('Customer_Account_Number_CAN__c')) {
+            accountRecord.put('Customer_Account_Number_CAN__c', 'CAN-FLOW-001');
+        }
         insert accountRecord;
 
         VisitFlowContextAction.Request request = new VisitFlowContextAction.Request();
@@ -17,7 +20,25 @@ private class VisitFlowActionsTest {
         System.assertEquals(1, responses.size());
         System.assertEquals(accountRecord.Id, responses[0].accountId);
         System.assertEquals('Visit Flow Context Account', responses[0].accountName);
+        System.assertEquals(true, responses[0].sourceAccountLocked);
         System.assert(responses[0].accountTeamUserIds.contains(UserInfo.getUserId()));
+        if (Schema.getGlobalDescribe().containsKey('Visit')) {
+            System.assertEquals(true, responses[0].hasVisitRecordTypes);
+            System.assert(!responses[0].availableRecordTypeIds.isEmpty());
+        }
+    }
+
+    @IsTest
+    static void contextActionAllowsMissingAccountForHomeLaunch() {
+        Test.startTest();
+        List<VisitFlowContextAction.Response> responses = VisitFlowContextAction.getContext(
+            new List<VisitFlowContextAction.Request>{ new VisitFlowContextAction.Request() }
+        );
+        Test.stopTest();
+
+        System.assertEquals(1, responses.size());
+        System.assertEquals(null, responses[0].accountId);
+        System.assertEquals(false, responses[0].sourceAccountLocked);
         if (Schema.getGlobalDescribe().containsKey('Visit')) {
             System.assertEquals(true, responses[0].hasVisitRecordTypes);
             System.assert(!responses[0].availableRecordTypeIds.isEmpty());

@@ -46,9 +46,16 @@ private class VisitWizardControllerTest {
 
     @IsTest
     static void metadataAndUserSearchMethodsReturnData() {
+        Account accountRecord = new Account(Name = 'Visit Wizard Account Info');
+        if (Account.SObjectType.getDescribe().fields.getMap().containsKey('Customer_Account_Number_CAN__c')) {
+            accountRecord.put('Customer_Account_Number_CAN__c', 'CAN-LWC-001');
+        }
+        insert accountRecord;
+
         Test.startTest();
         List<VisitWizardController.UserCandidate> users =
             VisitWizardController.searchUsers('', new List<Id>());
+        VisitWizardController.AccountInfo accountInfo = VisitWizardController.getAccountInfo(accountRecord.Id);
 
         try {
             List<VisitWizardController.RecordTypeOption> recordTypes =
@@ -62,11 +69,14 @@ private class VisitWizardControllerTest {
             }
             System.assertNotEquals(null, fields);
             assertNoDuplicateVisitFields(fields);
+            assertDefaultVisitFieldValues(fields);
         } catch (AuraHandledException e) {
             System.assert(!Schema.getGlobalDescribe().containsKey('Visit'), 'Visit metadata methods should work when Visit exists.');
         }
         Test.stopTest();
 
+        System.assertEquals(accountRecord.Id, accountInfo.accountId);
+        System.assertEquals('Visit Wizard Account Info', accountInfo.name);
         System.assert(!users.isEmpty(), 'The running user should be searchable.');
         Set<Id> userIds = new Set<Id>();
         for (VisitWizardController.UserCandidate userCandidate : users) {
@@ -1148,6 +1158,17 @@ private class VisitWizardControllerTest {
             String normalizedName = field.apiName == null ? '' : field.apiName.toLowerCase();
             System.assert(!seenFields.contains(normalizedName), 'Duplicate Visit field found on page 2: ' + field.apiName);
             seenFields.add(normalizedName);
+        }
+    }
+
+    private static void assertDefaultVisitFieldValues(List<VisitWizardController.FieldMetadata> fields) {
+        for (VisitWizardController.FieldMetadata field : fields) {
+            if (field.apiName == 'PlannedVisitStartTime') {
+                System.assertNotEquals(null, field.value, 'Planned Start Time should default to the current date/time.');
+            }
+            if (field.apiName == 'VisitPriority') {
+                System.assertEquals('Medium', field.value, 'Visit Priority should default to Medium.');
+            }
         }
     }
 }
