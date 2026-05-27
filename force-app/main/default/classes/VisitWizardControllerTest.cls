@@ -1049,6 +1049,13 @@ private class VisitWizardControllerTest {
         } catch (AuraHandledException e) {
             System.assert(e.getMessage().contains('Action Plan Template could not be found'));
         }
+
+        try {
+            VisitWizardController.getActionPlanTemplateType((Id) '0PT000000000002');
+            System.assert(false, 'Expected missing template type validation.');
+        } catch (AuraHandledException e) {
+            System.assert(e.getMessage().contains('Action Plan Template could not be found'));
+        }
     }
 
     @IsTest

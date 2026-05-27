@@ -70,6 +70,25 @@ private class VisitFlowActionsTest {
     }
 
     @IsTest
+    static void visitedPartySelectorReturnsOnlyAccountContacts() {
+        Account accountRecord = new Account(Name = 'Visit Flow Visited Party Account');
+        Account otherAccount = new Account(Name = 'Visit Flow Other Visited Party Account');
+        insert new List<Account>{ accountRecord, otherAccount };
+
+        Contact accountContact = new Contact(AccountId = accountRecord.Id, LastName = 'Flow Contact');
+        Contact otherContact = new Contact(AccountId = otherAccount.Id, LastName = 'Other Contact');
+        insert new List<Contact>{ accountContact, otherContact };
+
+        Test.startTest();
+        List<VisitFlowVisitedPartySelectorController.ContactOption> options =
+            VisitFlowVisitedPartySelectorController.getAccountContacts(accountRecord.Id);
+        Test.stopTest();
+
+        System.assertEquals(1, options.size(), 'Visited party options should be scoped to the source Account.');
+        System.assertEquals(accountContact.Id, options[0].contactId);
+    }
+
+    @IsTest
     static void actionPlanFlowActionValidatesRequiredInputsBeforeDml() {
         System.assertEquals(0, VisitFlowActionPlanSaveAction.createActionPlan(null).size());
 

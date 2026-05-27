@@ -19,6 +19,7 @@ export default class VisitFlowVisitorSelector extends LightningElement {
     isSearching = false;
     _selectedAccountTeamVisitorIds = '';
     _selectedAdditionalVisitorIds = '';
+    _selectedVisitorUserIds = [];
 
     @api
     get selectedAccountTeamVisitorIds() {
@@ -38,10 +39,20 @@ export default class VisitFlowVisitorSelector extends LightningElement {
         this._selectedAdditionalVisitorIds = value || '';
     }
 
+    @api
+    get selectedVisitorUserIds() {
+        return this._selectedVisitorUserIds;
+    }
+
+    set selectedVisitorUserIds(value) {
+        this._selectedVisitorUserIds = Array.isArray(value) ? value : this.parseIds(value);
+    }
+
     connectedCallback() {
         this.selectedTeamIds = this.parseIds(this.selectedAccountTeamVisitorIds);
         this.loadAccountTeam();
         this.hydrateAdditionalUsers();
+        this.emitVisitorUserIds();
     }
 
     get hasTeamUsers() {
@@ -69,9 +80,9 @@ export default class VisitFlowVisitorSelector extends LightningElement {
     }
 
     get searchResultRows() {
-        const selectedIds = new Set([
-            this.accountOwnerId,
-            ...this.selectedTeamIds,
+            const selectedIds = new Set([
+                this.accountOwnerId,
+                ...this.selectedTeamIds,
             ...this.additionalUsers.map((user) => user.userId)
         ].filter(Boolean));
 
@@ -110,6 +121,7 @@ export default class VisitFlowVisitorSelector extends LightningElement {
 
         try {
             this.additionalUsers = await getUsersByIds({ userIds });
+            this.emitVisitorUserIds();
         } catch (error) {
             this.errorMessage = this.errorText(error);
         }
@@ -153,7 +165,7 @@ export default class VisitFlowVisitorSelector extends LightningElement {
         try {
             this.searchResults = await searchActiveUsers({
                 searchTerm: trimmedTerm,
-                excludeUserIds: this.additionalUsers.map((user) => user.userId)
+                excludeUserIds: this.currentVisitorIds
             });
         } catch (error) {
             this.errorMessage = this.errorText(error);
@@ -183,12 +195,28 @@ export default class VisitFlowVisitorSelector extends LightningElement {
         const value = this.selectedTeamIds.join(';');
         this._selectedAccountTeamVisitorIds = value;
         this.dispatchEvent(new FlowAttributeChangeEvent('selectedAccountTeamVisitorIds', value));
+        this.emitVisitorUserIds();
     }
 
     emitAdditionalUserIds() {
         const value = this.additionalUsers.map((user) => user.userId).join(';');
         this._selectedAdditionalVisitorIds = value;
         this.dispatchEvent(new FlowAttributeChangeEvent('selectedAdditionalVisitorIds', value));
+        this.emitVisitorUserIds();
+    }
+
+    emitVisitorUserIds() {
+        const value = this.currentVisitorIds;
+        this._selectedVisitorUserIds = value;
+        this.dispatchEvent(new FlowAttributeChangeEvent('selectedVisitorUserIds', value));
+    }
+
+    get currentVisitorIds() {
+        return this.uniqueIds([
+            this.accountOwnerId,
+            ...this.selectedTeamIds,
+            ...this.additionalUsers.map((user) => user.userId)
+        ]);
     }
 
     parseIds(value) {

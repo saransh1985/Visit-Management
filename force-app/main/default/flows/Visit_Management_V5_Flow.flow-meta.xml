@@ -62,155 +62,106 @@
             <name>errorMessage</name>
         </outputParameters>
     </actionCalls>
-    <actionCalls>
-        <name>Create_Visit</name>
-        <label>Create Visit</label>
+    <apiVersion>66.0</apiVersion>
+    <assignments>
+        <name>Add_Current_Visited_Party_Record</name>
+        <label>Add Current Visited Party Record</label>
         <locationX>176</locationX>
-        <locationY>758</locationY>
-        <actionName>VisitFlowSaveAction</actionName>
-        <actionType>apex</actionType>
+        <locationY>878</locationY>
+        <assignmentItems>
+            <assignToReference>visitedPartyRecord.ContactId</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>currentVisitedContactId</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>visitedPartyRecord.VisitId</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>createdVisitId</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>visitedPartyRecords</assignToReference>
+            <operator>Add</operator>
+            <value>
+                <elementReference>visitedPartyRecord</elementReference>
+            </value>
+        </assignmentItems>
         <connector>
-            <targetReference>Check_Action_Plan</targetReference>
+            <targetReference>Loop_Visited_Contact_Ids</targetReference>
         </connector>
-        <faultConnector>
-            <targetReference>Flow_Error</targetReference>
-        </faultConnector>
-        <flowTransactionModel>CurrentTransaction</flowTransactionModel>
-        <inputParameters>
-            <name>accountId</name>
-            <value>
-                <elementReference>accountId</elementReference>
-            </value>
-        </inputParameters>
-        <inputParameters>
-            <name>recordTypeId</name>
-            <value>
-                <elementReference>selectedRecordTypeId</elementReference>
-            </value>
-        </inputParameters>
-        <inputParameters>
-            <name>placeId</name>
-            <value>
-                <elementReference>placeId</elementReference>
-            </value>
-        </inputParameters>
-        <inputParameters>
-            <name>plannedVisitStartTime</name>
-            <value>
-                <elementReference>plannedVisitStartTime</elementReference>
-            </value>
-        </inputParameters>
-        <inputParameters>
-            <name>plannedVisitEndTime</name>
-            <value>
-                <elementReference>plannedVisitEndTime</elementReference>
-            </value>
-        </inputParameters>
-        <inputParameters>
-            <name>statusRemarks</name>
-            <value>
-                <elementReference>statusRemarks</elementReference>
-            </value>
-        </inputParameters>
-        <inputParameters>
-            <name>instructionDescription</name>
-            <value>
-                <elementReference>instructionDescription</elementReference>
-            </value>
-        </inputParameters>
-        <inputParameters>
-            <name>accountTeamVisitorIds</name>
-            <value>
-                <elementReference>selectedAccountTeamVisitorIds</elementReference>
-            </value>
-        </inputParameters>
-        <inputParameters>
-            <name>additionalVisitorIds</name>
-            <value>
-                <elementReference>selectedAdditionalVisitorIds</elementReference>
-            </value>
-        </inputParameters>
-        <inputParameters>
-            <name>visitedContactIds</name>
-            <value>
-                <elementReference>selectedVisitedContactIds</elementReference>
-            </value>
-        </inputParameters>
-        <nameSegment>VisitFlowSaveAction</nameSegment>
-        <outputParameters>
-            <assignToReference>createdVisitId</assignToReference>
-            <name>visitId</name>
-        </outputParameters>
-        <outputParameters>
-            <assignToReference>createdVisitUrl</assignToReference>
-            <name>visitUrl</name>
-        </outputParameters>
-        <outputParameters>
-            <assignToReference>saveMessage</assignToReference>
-            <name>message</name>
-        </outputParameters>
-    </actionCalls>
-    <actionCalls>
-        <name>Create_Action_Plan</name>
-        <label>Create Action Plan</label>
+    </assignments>
+    <assignments>
+        <name>Add_Current_Visitor_Record</name>
+        <label>Add Current Visitor Record</label>
         <locationX>176</locationX>
-        <locationY>998</locationY>
-        <actionName>VisitFlowActionPlanSaveAction</actionName>
-        <actionType>apex</actionType>
+        <locationY>878</locationY>
+        <assignmentItems>
+            <assignToReference>visitorRecord.AssigneeId</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>currentVisitorUserId</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>visitorRecord.VisitId</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>createdVisitId</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>visitorRecords</assignToReference>
+            <operator>Add</operator>
+            <value>
+                <elementReference>visitorRecord</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>Loop_Visitor_User_Ids</targetReference>
+        </connector>
+    </assignments>
+    <assignments>
+        <name>Set_Action_Plan_Message</name>
+        <label>Set Action Plan Message</label>
+        <locationX>176</locationX>
+        <locationY>1118</locationY>
+        <assignmentItems>
+            <assignToReference>actionPlanMessage</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue>Action Plan created.</stringValue>
+            </value>
+        </assignmentItems>
         <connector>
             <targetReference>Success</targetReference>
         </connector>
-        <faultConnector>
-            <targetReference>Flow_Error</targetReference>
-        </faultConnector>
-        <flowTransactionModel>CurrentTransaction</flowTransactionModel>
-        <inputParameters>
-            <name>visitId</name>
+    </assignments>
+    <assignments>
+        <name>Set_Visit_Save_Message</name>
+        <label>Set Visit Save Message</label>
+        <locationX>176</locationX>
+        <locationY>878</locationY>
+        <assignmentItems>
+            <assignToReference>createdVisitUrl</assignToReference>
+            <operator>Assign</operator>
             <value>
-                <elementReference>createdVisitId</elementReference>
+                <elementReference>createdVisitUrlFormula</elementReference>
             </value>
-        </inputParameters>
-        <inputParameters>
-            <name>targetRecordId</name>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>saveMessage</assignToReference>
+            <operator>Assign</operator>
             <value>
-                <elementReference>createdVisitId</elementReference>
+                <stringValue>Visit created.</stringValue>
             </value>
-        </inputParameters>
-        <inputParameters>
-            <name>name</name>
-            <value>
-                <elementReference>actionPlanName</elementReference>
-            </value>
-        </inputParameters>
-        <inputParameters>
-            <name>startDate</name>
-            <value>
-                <elementReference>actionPlanStartDate</elementReference>
-            </value>
-        </inputParameters>
-        <inputParameters>
-            <name>actionPlanTemplateVersionId</name>
-            <value>
-                <elementReference>actionPlanTemplateVersionId</elementReference>
-            </value>
-        </inputParameters>
-        <inputParameters>
-            <name>status</name>
-            <value>
-                <elementReference>actionPlanStatus</elementReference>
-            </value>
-        </inputParameters>
-        <nameSegment>VisitFlowActionPlanSaveAction</nameSegment>
-        <outputParameters>
-            <assignToReference>createdActionPlanId</assignToReference>
-            <name>actionPlanId</name>
-        </outputParameters>
-        <outputParameters>
-            <assignToReference>actionPlanMessage</assignToReference>
-            <name>message</name>
-        </outputParameters>
-    </actionCalls>
-    <apiVersion>66.0</apiVersion>
+        </assignmentItems>
+        <connector>
+            <targetReference>Loop_Visitor_User_Ids</targetReference>
+        </connector>
+    </assignments>
     <description>Screen Flow version of the V5 Automotive Cloud Visit wizard. Creates a Visit, Visitors, and Visited Parties from an Account record action.</description>
     <choices>
         <name>Add_Action_Plan_No</name>
@@ -228,23 +179,6 @@
             <stringValue>Yes</stringValue>
         </value>
     </choices>
-    <dynamicChoiceSets>
-        <name>AccountContactChoices</name>
-        <dataType>String</dataType>
-        <displayField>Name</displayField>
-        <filterLogic>and</filterLogic>
-        <filters>
-            <field>AccountId</field>
-            <operator>EqualTo</operator>
-            <value>
-                <elementReference>accountId</elementReference>
-            </value>
-        </filters>
-        <object>Contact</object>
-        <sortField>Name</sortField>
-        <sortOrder>Asc</sortOrder>
-        <valueField>Id</valueField>
-    </dynamicChoiceSets>
     <dynamicChoiceSets>
         <name>AccountTeamUserChoices</name>
         <dataType>String</dataType>
@@ -296,6 +230,11 @@
         <valueField>Id</valueField>
     </dynamicChoiceSets>
     <environments>Default</environments>
+    <formulas>
+        <name>createdVisitUrlFormula</name>
+        <dataType>String</dataType>
+        <expression>&quot;/&quot; &amp; {!createdVisitId}</expression>
+    </formulas>
     <interviewLabel>New Visit V5 Flow {!$Flow.CurrentDateTime}</interviewLabel>
     <label>New Visit V5 Flow</label>
     <processMetadataValues>
@@ -317,6 +256,168 @@
         </value>
     </processMetadataValues>
     <processType>Flow</processType>
+    <loops>
+        <name>Loop_Visited_Contact_Ids</name>
+        <label>Loop Visited Contact Ids</label>
+        <locationX>176</locationX>
+        <locationY>878</locationY>
+        <collectionReference>selectedVisitedContactIds</collectionReference>
+        <iterationOrder>Asc</iterationOrder>
+        <nextValueConnector>
+            <targetReference>Add_Current_Visited_Party_Record</targetReference>
+        </nextValueConnector>
+        <noMoreValuesConnector>
+            <targetReference>Create_Visited_Party_Records</targetReference>
+        </noMoreValuesConnector>
+        <assignNextValueToReference>currentVisitedContactId</assignNextValueToReference>
+    </loops>
+    <loops>
+        <name>Loop_Visitor_User_Ids</name>
+        <label>Loop Visitor User Ids</label>
+        <locationX>176</locationX>
+        <locationY>878</locationY>
+        <collectionReference>selectedVisitorUserIds</collectionReference>
+        <iterationOrder>Asc</iterationOrder>
+        <nextValueConnector>
+            <targetReference>Add_Current_Visitor_Record</targetReference>
+        </nextValueConnector>
+        <noMoreValuesConnector>
+            <targetReference>Create_Visitor_Records</targetReference>
+        </noMoreValuesConnector>
+        <assignNextValueToReference>currentVisitorUserId</assignNextValueToReference>
+    </loops>
+    <recordCreates>
+        <name>Create_Action_Plan_Record</name>
+        <label>Create Action Plan Record</label>
+        <locationX>176</locationX>
+        <locationY>1118</locationY>
+        <assignRecordIdToReference>createdActionPlanId</assignRecordIdToReference>
+        <connector>
+            <targetReference>Set_Action_Plan_Message</targetReference>
+        </connector>
+        <faultConnector>
+            <targetReference>Flow_Error</targetReference>
+        </faultConnector>
+        <inputAssignments>
+            <field>ActionPlanState</field>
+            <value>
+                <elementReference>actionPlanStatus</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>ActionPlanTemplateVersionId</field>
+            <value>
+                <elementReference>actionPlanTemplateVersionId</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>ActionPlanType</field>
+            <value>
+                <elementReference>actionPlanType</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>Name</field>
+            <value>
+                <elementReference>actionPlanName</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>StartDate</field>
+            <value>
+                <elementReference>actionPlanStartDate</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>TargetId</field>
+            <value>
+                <elementReference>createdVisitId</elementReference>
+            </value>
+        </inputAssignments>
+        <object>ActionPlan</object>
+    </recordCreates>
+    <recordCreates>
+        <name>Create_Visit_Record</name>
+        <label>Create Visit Record</label>
+        <locationX>176</locationX>
+        <locationY>758</locationY>
+        <assignRecordIdToReference>createdVisitId</assignRecordIdToReference>
+        <connector>
+            <targetReference>Set_Visit_Save_Message</targetReference>
+        </connector>
+        <faultConnector>
+            <targetReference>Flow_Error</targetReference>
+        </faultConnector>
+        <inputAssignments>
+            <field>AccountId</field>
+            <value>
+                <elementReference>accountId</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>InstructionDescription</field>
+            <value>
+                <elementReference>instructionDescription</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>PlaceId</field>
+            <value>
+                <elementReference>placeId</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>PlannedVisitEndTime</field>
+            <value>
+                <elementReference>plannedVisitEndTime</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>PlannedVisitStartTime</field>
+            <value>
+                <elementReference>plannedVisitStartTime</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>RecordTypeId</field>
+            <value>
+                <elementReference>selectedRecordTypeId</elementReference>
+            </value>
+        </inputAssignments>
+        <inputAssignments>
+            <field>StatusRemarks</field>
+            <value>
+                <elementReference>statusRemarks</elementReference>
+            </value>
+        </inputAssignments>
+        <object>Visit</object>
+    </recordCreates>
+    <recordCreates>
+        <name>Create_Visited_Party_Records</name>
+        <label>Create Visited Party Records</label>
+        <locationX>176</locationX>
+        <locationY>878</locationY>
+        <connector>
+            <targetReference>Check_Action_Plan</targetReference>
+        </connector>
+        <faultConnector>
+            <targetReference>Flow_Error</targetReference>
+        </faultConnector>
+        <inputReference>visitedPartyRecords</inputReference>
+    </recordCreates>
+    <recordCreates>
+        <name>Create_Visitor_Records</name>
+        <label>Create Visitor Records</label>
+        <locationX>176</locationX>
+        <locationY>878</locationY>
+        <connector>
+            <targetReference>Loop_Visited_Contact_Ids</targetReference>
+        </connector>
+        <faultConnector>
+            <targetReference>Flow_Error</targetReference>
+        </faultConnector>
+        <inputReference>visitorRecords</inputReference>
+    </recordCreates>
     <decisions>
         <name>Check_Record_Type_Access</name>
         <label>Check Record Type Access</label>
@@ -507,6 +608,10 @@
                 <assignToReference>selectedAdditionalVisitorIds</assignToReference>
                 <name>selectedAdditionalVisitorIds</name>
             </outputParameters>
+            <outputParameters>
+                <assignToReference>selectedVisitorUserIds</assignToReference>
+                <name>selectedVisitorUserIds</name>
+            </outputParameters>
             <isRequired>true</isRequired>
         </fields>
         <nextOrFinishButtonLabel>Next</nextOrFinishButtonLabel>
@@ -522,7 +627,7 @@
         <allowFinish>true</allowFinish>
         <allowPause>false</allowPause>
         <connector>
-            <targetReference>Create_Visit</targetReference>
+            <targetReference>Create_Visit_Record</targetReference>
         </connector>
         <fields>
             <name>VisitedPartyIntro</name>
@@ -530,11 +635,25 @@
             <fieldType>DisplayText</fieldType>
         </fields>
         <fields>
-            <name>selectedVisitedContactIds</name>
-            <choiceReferences>AccountContactChoices</choiceReferences>
-            <dataType>String</dataType>
-            <fieldText>Visited Parties</fieldText>
-            <fieldType>MultiSelectCheckboxes</fieldType>
+            <name>VisitedPartySelector</name>
+            <extensionName>c:visitFlowVisitedPartySelector</extensionName>
+            <fieldType>ComponentInstance</fieldType>
+            <inputParameters>
+                <name>accountId</name>
+                <value>
+                    <elementReference>accountId</elementReference>
+                </value>
+            </inputParameters>
+            <inputParameters>
+                <name>selectedVisitedContactIds</name>
+                <value>
+                    <elementReference>selectedVisitedContactIds</elementReference>
+                </value>
+            </inputParameters>
+            <outputParameters>
+                <assignToReference>selectedVisitedContactIds</assignToReference>
+                <name>selectedVisitedContactIds</name>
+            </outputParameters>
             <isRequired>true</isRequired>
         </fields>
         <fields>
@@ -560,7 +679,7 @@
         <allowFinish>true</allowFinish>
         <allowPause>false</allowPause>
         <connector>
-            <targetReference>Create_Action_Plan</targetReference>
+            <targetReference>Create_Action_Plan_Record</targetReference>
         </connector>
         <fields>
             <name>ActionPlanIntro</name>
@@ -607,6 +726,12 @@
                     <elementReference>actionPlanStatus</elementReference>
                 </value>
             </inputParameters>
+            <inputParameters>
+                <name>actionPlanType</name>
+                <value>
+                    <elementReference>actionPlanType</elementReference>
+                </value>
+            </inputParameters>
             <outputParameters>
                 <assignToReference>actionPlanName</assignToReference>
                 <name>actionPlanName</name>
@@ -626,6 +751,10 @@
             <outputParameters>
                 <assignToReference>actionPlanStatus</assignToReference>
                 <name>actionPlanStatus</name>
+            </outputParameters>
+            <outputParameters>
+                <assignToReference>actionPlanType</assignToReference>
+                <name>actionPlanType</name>
             </outputParameters>
             <isRequired>true</isRequired>
         </fields>
@@ -725,6 +854,13 @@
         <isOutput>false</isOutput>
     </variables>
     <variables>
+        <name>actionPlanType</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
         <name>actionPlanTemplateVersionId</name>
         <dataType>String</dataType>
         <isCollection>false</isCollection>
@@ -809,6 +945,52 @@
         <isOutput>false</isOutput>
     </variables>
     <variables>
+        <name>currentVisitedContactId</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>currentVisitorUserId</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>visitedPartyRecord</name>
+        <dataType>SObject</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+        <objectType>VisitedParty</objectType>
+    </variables>
+    <variables>
+        <name>visitedPartyRecords</name>
+        <dataType>SObject</dataType>
+        <isCollection>true</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+        <objectType>VisitedParty</objectType>
+    </variables>
+    <variables>
+        <name>visitorRecord</name>
+        <dataType>SObject</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+        <objectType>Visitor</objectType>
+    </variables>
+    <variables>
+        <name>visitorRecords</name>
+        <dataType>SObject</dataType>
+        <isCollection>true</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+        <objectType>Visitor</objectType>
+    </variables>
+    <variables>
         <name>defaultRecordTypeId</name>
         <dataType>String</dataType>
         <isCollection>false</isCollection>
@@ -847,6 +1029,20 @@
         <name>selectedAdditionalVisitorIds</name>
         <dataType>String</dataType>
         <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>selectedVisitedContactIds</name>
+        <dataType>String</dataType>
+        <isCollection>true</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>selectedVisitorUserIds</name>
+        <dataType>String</dataType>
+        <isCollection>true</isCollection>
         <isInput>false</isInput>
         <isOutput>false</isOutput>
     </variables>

@@ -1,0 +1,47 @@
+<template>
+    <template if:true={isLoading}>
+        <lightning-spinner alternative-text="Loading contacts" size="small"></lightning-spinner>
+    </template>
+
+    <template if:true={errorMessage}>
+        <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_small" role="alert">
+            <span>{errorMessage}</span>
+        </div>
+    </template>
+
+    <template if:true={hasContacts}>
+        <div class="table-wrap">
+            <table class="slds-table slds-table_cell-buffer slds-table_bordered">
+                <thead>
+                    <tr>
+                        <th scope="col">Select</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Title</th>
+                        <th scope="col">Email</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template for:each={contactRows} for:item="contact">
+                        <tr key={contact.contactId}>
+                            <td>
+                                <lightning-input
+                                    type="checkbox"
+                                    variant="label-hidden"
+                                    data-id={contact.contactId}
+                                    checked={contact.selected}
+                                    onchange={handleSelection}
+                                ></lightning-input>
+                            </td>
+                            <td>{contact.name}</td>
+                            <td>{contact.title}</td>
+                            <td>{contact.email}</td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
+    </template>
+    <template if:false={hasContacts}>
+        <div class="empty-state">No contacts were found for this Account.</div>
+    </template>
+</template>

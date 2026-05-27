@@ -402,6 +402,13 @@ public inherited sharing class VisitWizardController {
         }
     }
 
+    @AuraEnabled(cacheable=true)
+    public static String getActionPlanTemplateType(Id templateVersionId) {
+        SObject templateVersion = actionPlanTemplateVersionForVisit(templateVersionId);
+        SObject template = templateVersion.getSObject('ActionPlanTemplate');
+        return template == null ? null : (String) template.get('ActionPlanType');
+    }
+
     @TestVisible
     private static SaveRequest saveRequestFromJson(Object rawPayload) {
         if (!(rawPayload instanceof Map<String, Object>)) {

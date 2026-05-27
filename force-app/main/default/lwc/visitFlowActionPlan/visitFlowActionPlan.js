@@ -1,6 +1,7 @@
 import { LightningElement, api } from 'lwc';
 import { FlowAttributeChangeEvent } from 'lightning/flowSupport';
 import getActionPlanStartInfo from '@salesforce/apex/VisitWizardController.getActionPlanStartInfo';
+import getActionPlanTemplateType from '@salesforce/apex/VisitWizardController.getActionPlanTemplateType';
 
 export default class VisitFlowActionPlan extends LightningElement {
     @api visitId;
@@ -14,6 +15,7 @@ export default class VisitFlowActionPlan extends LightningElement {
     _actionPlanTemplateVersionId = '';
     _actionPlanTargetRecordId = '';
     _actionPlanStatus = '';
+    _actionPlanType = '';
 
     @api
     get actionPlanName() {
@@ -58,6 +60,15 @@ export default class VisitFlowActionPlan extends LightningElement {
 
     set actionPlanStatus(value) {
         this._actionPlanStatus = value || '';
+    }
+
+    @api
+    get actionPlanType() {
+        return this._actionPlanType;
+    }
+
+    set actionPlanType(value) {
+        this._actionPlanType = value || '';
     }
 
     templateFilter = {
@@ -130,6 +141,9 @@ export default class VisitFlowActionPlan extends LightningElement {
                 '';
             this.emitValue('actionPlanTargetRecordId', this.actionPlanTargetRecordId);
             this.emitValue('actionPlanStatus', this.actionPlanStatus);
+            if (this.actionPlanTemplateVersionId && !this.actionPlanType) {
+                await this.resolveTemplateType(this.actionPlanTemplateVersionId);
+            }
         } catch (error) {
             this.errorMessage = this.errorText(error);
         } finally {
@@ -141,13 +155,17 @@ export default class VisitFlowActionPlan extends LightningElement {
         this.emitValue(event.target.dataset.field, event.target.value);
     }
 
-    handleTemplateChange(event) {
+    async handleTemplateChange(event) {
         const value = event.detail?.recordId || event.detail?.value || event.target.value;
         this.emitValue('actionPlanTemplateVersionId', value);
+        await this.resolveTemplateType(value);
     }
 
     handleRecentTemplateSelect(event) {
-        this.emitValue('actionPlanTemplateVersionId', event.currentTarget.dataset.id);
+        const templateVersionId = event.currentTarget.dataset.id;
+        this.emitValue('actionPlanTemplateVersionId', templateVersionId);
+        const template = this.recentTemplateOptions.find((option) => option.templateVersionId === templateVersionId);
+        this.emitValue('actionPlanType', template?.actionPlanType || '');
     }
 
     emitValue(name, value) {
@@ -156,6 +174,21 @@ export default class VisitFlowActionPlan extends LightningElement {
         }
         this[`_${name}`] = value || '';
         this.dispatchEvent(new FlowAttributeChangeEvent(name, this[`_${name}`]));
+    }
+
+    async resolveTemplateType(templateVersionId) {
+        if (!templateVersionId) {
+            this.emitValue('actionPlanType', '');
+            return;
+        }
+
+        try {
+            const actionPlanType = await getActionPlanTemplateType({ templateVersionId });
+            this.emitValue('actionPlanType', actionPlanType);
+        } catch (error) {
+            this.emitValue('actionPlanType', '');
+            this.errorMessage = this.errorText(error);
+        }
     }
 
     todayValue() {
@@ -178,7 +211,7 @@ export default class VisitFlowActionPlan extends LightningElement {
             }
         });
 
-        if (!this.actionPlanTemplateVersionId) {
+        if (!this.actionPlanTemplateVersionId || !this.actionPlanType) {
             isValid = false;
         }
 

@@ -13,6 +13,7 @@
             <property name="accountOwnerName" type="String" label="Account Owner Name" role="inputOnly"/>
             <property name="selectedAccountTeamVisitorIds" type="String" label="Selected Account Team Visitor Ids"/>
             <property name="selectedAdditionalVisitorIds" type="String" label="Selected Additional Visitor Ids"/>
+            <property name="selectedVisitorUserIds" type="String[]" label="Selected Visitor User Ids"/>
         </targetConfig>
     </targetConfigs>
 </LightningComponentBundle>

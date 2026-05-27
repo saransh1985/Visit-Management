@@ -14,6 +14,7 @@
             <property name="actionPlanTemplateVersionId" type="String" label="Action Plan Template Version Id"/>
             <property name="actionPlanTargetRecordId" type="String" label="Action Plan Target Record Id"/>
             <property name="actionPlanStatus" type="String" label="Action Plan Status"/>
+            <property name="actionPlanType" type="String" label="Action Plan Type"/>
         </targetConfig>
     </targetConfigs>
 </LightningComponentBundle>
