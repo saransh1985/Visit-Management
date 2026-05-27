@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <deploymentStatus>Deployed</deploymentStatus>
+    <description>Audit and rollback history for Automation Control Center bulk metadata actions.</description>
+    <enableActivities>false</enableActivities>
+    <enableBulkApi>true</enableBulkApi>
+    <enableFeeds>true</enableFeeds>
+    <enableHistory>true</enableHistory>
+    <enableReports>true</enableReports>
+    <label>Automation Control History</label>
+    <nameField>
+        <displayFormat>ACH-{000000}</displayFormat>
+        <label>Automation Control History Number</label>
+        <type>AutoNumber</type>
+    </nameField>
+    <pluralLabel>Automation Control Histories</pluralLabel>
+    <sharingModel>ReadWrite</sharingModel>
+</CustomObject>

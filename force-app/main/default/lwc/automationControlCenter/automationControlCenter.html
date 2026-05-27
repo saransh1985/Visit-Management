@@ -1,0 +1,292 @@
+<template>
+    <lightning-card title="Automation Control Center" icon-name="standard:process">
+        <template if:true={isBusy}>
+            <lightning-spinner alternative-text="Loading" size="medium"></lightning-spinner>
+        </template>
+
+        <div class="workspace">
+            <template if:true={errorMessage}>
+                <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium" role="alert">
+                    <span>{errorMessage}</span>
+                </div>
+            </template>
+
+            <lightning-tabset>
+                <lightning-tab label="Validation Rules Manager">
+                    <div class="toolbar">
+                        <lightning-input
+                            type="search"
+                            label="Find Object"
+                            value={objectSearchTerm}
+                            onchange={handleObjectSearchChange}
+                            onkeyup={handleObjectSearchKeyup}
+                        ></lightning-input>
+                        <lightning-combobox
+                            label="Object"
+                            value={selectedObjectApiName}
+                            options={filteredObjectOptions}
+                            onchange={handleObjectChange}
+                        ></lightning-combobox>
+                        <lightning-input
+                            type="checkbox"
+                            label="Show Disabled Validation Rules"
+                            checked={showDisabledValidationRules}
+                            onchange={handleShowDisabledChange}
+                        ></lightning-input>
+                        <div class="toolbar-actions">
+                            <lightning-button
+                                label="Refresh"
+                                icon-name="utility:refresh"
+                                disabled={isBusy}
+                                onclick={handleValidationRefresh}
+                            ></lightning-button>
+                            <lightning-button
+                                label="Preview Bulk Disable"
+                                icon-name="utility:preview"
+                                variant="brand"
+                                disabled={validationBulkDisabled}
+                                onclick={handlePreviewValidationBulkDisable}
+                            ></lightning-button>
+                        </div>
+                    </div>
+
+                    <div class="history-bar">
+                        <lightning-combobox
+                            label="Re-enable from History"
+                            value={selectedValidationBatchId}
+                            options={validationHistoryOptions}
+                            onchange={handleValidationBatchChange}
+                        ></lightning-combobox>
+                        <lightning-button
+                            label="Preview Re-enable"
+                            icon-name="utility:undo"
+                            disabled={validationReenableDisabled}
+                            onclick={handlePreviewValidationReenable}
+                        ></lightning-button>
+                    </div>
+
+                    <div class="summary-bar">
+                        <span>{validationSummary}</span>
+                        <span>Page {validationPageNumber}</span>
+                        <lightning-button-icon
+                            icon-name="utility:chevronleft"
+                            alternative-text="Previous page"
+                            title="Previous page"
+                            disabled={validationPreviousDisabled}
+                            onclick={handleValidationPrevious}
+                        ></lightning-button-icon>
+                        <lightning-button-icon
+                            icon-name="utility:chevronright"
+                            alternative-text="Next page"
+                            title="Next page"
+                            disabled={validationNextDisabled}
+                            onclick={handleValidationNext}
+                        ></lightning-button-icon>
+                    </div>
+
+                    <div class="table-wrap">
+                        <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_fixed-layout">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Object API Name</th>
+                                    <th scope="col">Object Label</th>
+                                    <th scope="col">Validation Rule Name</th>
+                                    <th scope="col">Validation Rule Label</th>
+                                    <th scope="col">Description</th>
+                                    <th scope="col">Error Message</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Last Modified By</th>
+                                    <th scope="col">Last Modified Date</th>
+                                    <th scope="col" class="action-col">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={validationRows} for:item="row">
+                                    <template if:true={row.groupLabel}>
+                                        <tr key={row.groupKey} class="group-row">
+                                            <th colspan="10" scope="colgroup">{row.groupLabel}</th>
+                                        </tr>
+                                    </template>
+                                    <tr key={row.rowKey}>
+                                        <td title={row.objectApiName}>{row.objectApiName}</td>
+                                        <td title={row.objectLabel}>{row.objectLabel}</td>
+                                        <td title={row.metadataApiName}>{row.metadataApiName}</td>
+                                        <td title={row.metadataLabel}>{row.metadataLabel}</td>
+                                        <td title={row.description}>{row.description}</td>
+                                        <td title={row.errorMessage}>{row.errorMessage}</td>
+                                        <td>{row.status}</td>
+                                        <td title={row.lastModifiedByName}>{row.lastModifiedByName}</td>
+                                        <td title={row.lastModifiedDate}>{row.lastModifiedDate}</td>
+                                        <td class="action-col">
+                                            <lightning-input
+                                                type="toggle"
+                                                variant="label-hidden"
+                                                checked={row.active}
+                                                disabled={row.actionDisabled}
+                                                data-id={row.toolingId}
+                                                onchange={handleValidationToggle}
+                                            ></lightning-input>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </lightning-tab>
+
+                <lightning-tab label="Flows Manager">
+                    <div class="toolbar toolbar_flows">
+                        <lightning-input
+                            type="search"
+                            label="Find Flow"
+                            value={flowSearchTerm}
+                            onchange={handleFlowSearchChange}
+                            onkeyup={handleFlowSearchKeyup}
+                        ></lightning-input>
+                        <div class="toolbar-actions">
+                            <lightning-button
+                                label="Search"
+                                icon-name="utility:search"
+                                disabled={isBusy}
+                                onclick={handleFlowSearch}
+                            ></lightning-button>
+                            <lightning-button
+                                label="Preview Bulk Deactivate"
+                                icon-name="utility:preview"
+                                variant="brand"
+                                disabled={flowBulkDisabled}
+                                onclick={handlePreviewFlowBulkDeactivate}
+                            ></lightning-button>
+                        </div>
+                    </div>
+
+                    <div class="history-bar">
+                        <lightning-combobox
+                            label="Re-enable from History"
+                            value={selectedFlowBatchId}
+                            options={flowHistoryOptions}
+                            onchange={handleFlowBatchChange}
+                        ></lightning-combobox>
+                        <lightning-button
+                            label="Preview Re-enable"
+                            icon-name="utility:undo"
+                            disabled={flowReenableDisabled}
+                            onclick={handlePreviewFlowReenable}
+                        ></lightning-button>
+                    </div>
+
+                    <div class="summary-bar">
+                        <span>{flowSummary}</span>
+                        <span>Page {flowPageNumber}</span>
+                        <lightning-button-icon
+                            icon-name="utility:chevronleft"
+                            alternative-text="Previous page"
+                            title="Previous page"
+                            disabled={flowPreviousDisabled}
+                            onclick={handleFlowPrevious}
+                        ></lightning-button-icon>
+                        <lightning-button-icon
+                            icon-name="utility:chevronright"
+                            alternative-text="Next page"
+                            title="Next page"
+                            disabled={flowNextDisabled}
+                            onclick={handleFlowNext}
+                        ></lightning-button-icon>
+                    </div>
+
+                    <div class="table-wrap">
+                        <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_fixed-layout">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Flow Label</th>
+                                    <th scope="col">Flow API Name</th>
+                                    <th scope="col">Flow Type</th>
+                                    <th scope="col">Active Version</th>
+                                    <th scope="col">Latest Version</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Last Modified By</th>
+                                    <th scope="col">Last Modified Date</th>
+                                    <th scope="col" class="action-col">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={flowRows} for:item="row">
+                                    <tr key={row.rowKey}>
+                                        <td title={row.metadataLabel}>{row.metadataLabel}</td>
+                                        <td title={row.metadataApiName}>{row.metadataApiName}</td>
+                                        <td title={row.flowType}>{row.flowType}</td>
+                                        <td>{row.activeVersionNumber}</td>
+                                        <td>{row.latestVersionNumber}</td>
+                                        <td>{row.status}</td>
+                                        <td title={row.lastModifiedByName}>{row.lastModifiedByName}</td>
+                                        <td title={row.lastModifiedDate}>{row.lastModifiedDate}</td>
+                                        <td class="action-col">
+                                            <lightning-input
+                                                type="toggle"
+                                                variant="label-hidden"
+                                                checked={row.active}
+                                                disabled={row.actionDisabled}
+                                                data-id={row.toolingId}
+                                                onchange={handleFlowToggle}
+                                            ></lightning-input>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </lightning-tab>
+            </lightning-tabset>
+        </div>
+    </lightning-card>
+
+    <template if:true={showPreviewModal}>
+        <section role="dialog" tabindex="-1" aria-modal="true" class="slds-modal slds-fade-in-open">
+            <div class="slds-modal__container preview-modal">
+                <header class="slds-modal__header">
+                    <h2 class="slds-modal__title">{previewTitle}</h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <div class="summary-bar preview-summary">
+                        <span>{previewScopeLabel}</span>
+                        <span>{previewCount} Items</span>
+                    </div>
+                    <div class="table-wrap table-wrap_preview">
+                        <table class="slds-table slds-table_cell-buffer slds-table_bordered slds-table_fixed-layout">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Object</th>
+                                    <th scope="col">Label</th>
+                                    <th scope="col">API Name</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Message</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={previewRows} for:item="row">
+                                    <tr key={row.key}>
+                                        <td title={row.objectApiName}>{row.objectApiName}</td>
+                                        <td title={row.metadataLabel}>{row.metadataLabel}</td>
+                                        <td title={row.metadataApiName}>{row.metadataApiName}</td>
+                                        <td title={row.status}>{row.status}</td>
+                                        <td title={row.message}>{row.message}</td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Cancel" onclick={closePreviewModal}></lightning-button>
+                    <lightning-button
+                        class="slds-m-left_small"
+                        label="Confirm"
+                        variant="brand"
+                        onclick={handleConfirmPreview}
+                    ></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+</template>
