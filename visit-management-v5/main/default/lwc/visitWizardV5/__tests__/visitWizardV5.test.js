@@ -161,6 +161,14 @@ function createComponent() {
     return element;
 }
 
+function createStandaloneComponent() {
+    const element = createElement('c-visit-wizard-v5', {
+        is: VisitWizard
+    });
+    document.body.appendChild(element);
+    return element;
+}
+
 function buttonByLabel(element, label) {
     return Array.from(element.shadowRoot.querySelectorAll('lightning-button')).find(
         (button) => button.label === label
@@ -205,6 +213,25 @@ describe('c-visit-wizard-v5', () => {
         const radioGroup = element.shadowRoot.querySelector('lightning-radio-group');
         expect(radioGroup).not.toBeNull();
         expect(radioGroup.value).toBe(RECORD_TYPE_ID);
+    });
+
+    it('configures standalone Account search by Account Name and CAN', async () => {
+        const element = createStandaloneComponent();
+        await flushPromises();
+
+        selectRecordType(element);
+        await flushPromises();
+
+        const accountPicker = element.shadowRoot.querySelector('lightning-record-picker');
+        expect(accountPicker.objectApiName).toBe('Account');
+        expect(accountPicker.displayInfo).toEqual({
+            primaryField: 'Name',
+            additionalFields: ['Customer_Account_Number_CAN__c']
+        });
+        expect(accountPicker.matchingInfo).toEqual({
+            primaryField: { fieldPath: 'Name' },
+            additionalFields: [{ fieldPath: 'Customer_Account_Number_CAN__c' }]
+        });
     });
 
     it('does not leave Visit details when a required Visit field is empty', async () => {

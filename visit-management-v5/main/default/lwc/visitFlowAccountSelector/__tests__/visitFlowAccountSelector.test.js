@@ -73,6 +73,15 @@ describe('c-visit-flow-account-selector', () => {
         });
         await flushPromises();
 
+        const accountPicker = element.shadowRoot.querySelector('lightning-record-picker');
+        expect(accountPicker.displayInfo).toEqual({
+            primaryField: 'Name',
+            additionalFields: ['Customer_Account_Number_CAN__c']
+        });
+        expect(accountPicker.matchingInfo).toEqual({
+            primaryField: { fieldPath: 'Name' },
+            additionalFields: [{ fieldPath: 'Customer_Account_Number_CAN__c' }]
+        });
         expect(element.validate().isValid).toBe(false);
     });
 

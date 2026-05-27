@@ -21,6 +21,7 @@ const STEP_ACTION_PLAN = 5;
 const ROW_ACTION_ADD = 'add';
 const ROW_ACTION_REMOVE = 'remove';
 const ROW_ACTION_SELECT_TEMPLATE = 'select_template';
+const ACCOUNT_CAN_FIELD = 'Customer_Account_Number_CAN__c';
 
 export default class VisitWizard extends NavigationMixin(LightningElement) {
     @track recordTypes = [];
@@ -69,6 +70,14 @@ export default class VisitWizard extends NavigationMixin(LightningElement) {
     actionPlanTemplateMatchingInfo = {
         primaryField: { fieldPath: 'Name' },
         additionalFields: [{ fieldPath: 'ActionPlanTemplate.Name' }]
+    };
+    accountPickerDisplayInfo = {
+        primaryField: 'Name',
+        additionalFields: [ACCOUNT_CAN_FIELD]
+    };
+    accountPickerMatchingInfo = {
+        primaryField: { fieldPath: 'Name' },
+        additionalFields: [{ fieldPath: ACCOUNT_CAN_FIELD }]
     };
     visitorCandidateColumns = [
         { label: 'Name', fieldName: 'name' },

@@ -2,9 +2,19 @@ import { LightningElement, api } from 'lwc';
 import { FlowAttributeChangeEvent } from 'lightning/flowSupport';
 import getAccountInfo from '@salesforce/apex/VisitWizardController.getAccountInfo';
 
+const ACCOUNT_CAN_FIELD = 'Customer_Account_Number_CAN__c';
+
 export default class VisitFlowAccountSelector extends LightningElement {
     @api selectedRecordTypeId;
     @api sourceAccountLocked = false;
+    accountPickerDisplayInfo = {
+        primaryField: 'Name',
+        additionalFields: [ACCOUNT_CAN_FIELD]
+    };
+    accountPickerMatchingInfo = {
+        primaryField: { fieldPath: 'Name' },
+        additionalFields: [{ fieldPath: ACCOUNT_CAN_FIELD }]
+    };
 
     _accountId;
     _accountName;
