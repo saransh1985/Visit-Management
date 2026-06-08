@@ -19,7 +19,7 @@ import saveVisitProgress from '@salesforce/apex/VisitWizardV6Controller.saveVisi
 import getActionPlanStartInfo from '@salesforce/apex/VisitWizardV6Controller.getActionPlanStartInfo';
 import getActionPlanTemplateOption from '@salesforce/apex/VisitWizardV6Controller.getActionPlanTemplateOption';
 import saveActionPlanAndLoadTasks from '@salesforce/apex/VisitWizardV6Controller.saveActionPlanAndLoadTasks';
-import createCustomTopic from '@salesforce/apex/VisitWizardV6Controller.createCustomTopic';
+import getTaskList from '@salesforce/apex/VisitWizardV6Controller.getTaskList';
 import startTask from '@salesforce/apex/VisitWizardV6Controller.startTask';
 import saveTask from '@salesforce/apex/VisitWizardV6Controller.saveTask';
 import getTaskNotes from '@salesforce/apex/VisitWizardV6Controller.getTaskNotes';
@@ -82,7 +82,7 @@ jest.mock('@salesforce/apex/VisitWizardV6Controller.saveVisitProgress', () => ({
 jest.mock('@salesforce/apex/VisitWizardV6Controller.getActionPlanStartInfo', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/VisitWizardV6Controller.getActionPlanTemplateOption', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/VisitWizardV6Controller.saveActionPlanAndLoadTasks', () => ({ default: jest.fn() }), { virtual: true });
-jest.mock('@salesforce/apex/VisitWizardV6Controller.createCustomTopic', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/VisitWizardV6Controller.getTaskList', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/VisitWizardV6Controller.startTask', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/VisitWizardV6Controller.saveTask', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/VisitWizardV6Controller.getTaskNotes', () => ({ default: jest.fn() }), { virtual: true });
@@ -169,7 +169,7 @@ function defaultMocks(contextOverrides = {}) {
     getActionPlanStartInfo.mockResolvedValue({ statusOptions: [], recentTemplates: [], defaultStatus: 'In Progress' });
     getActionPlanTemplateOption.mockResolvedValue({ templateVersionId: TEMPLATE_VERSION_ID, name: 'Resolved Template' });
     saveActionPlanAndLoadTasks.mockResolvedValue({ tasks: [], requiredTasksComplete: true });
-    createCustomTopic.mockResolvedValue({ tasks: [], requiredTasksComplete: true });
+    getTaskList.mockResolvedValue({ tasks: [], requiredTasksComplete: true });
     startTask.mockResolvedValue({ tasks: [], requiredTasksComplete: true });
     saveTask.mockResolvedValue({ tasks: [], requiredTasksComplete: true });
     getTaskNotes.mockResolvedValue([]);
@@ -439,5 +439,77 @@ describe('c-visit-wizard-v6', () => {
         const payload = JSON.parse(saveActionPlanAndLoadTasks.mock.calls.at(-1)[0].requestJson);
         expect(payload.name).toBe(expectedName);
         expect(payload.actionPlanTemplateVersionId).toBe(TEMPLATE_VERSION_ID);
+    });
+
+    it('opens New Topic as a Generic Visit Task-style form tied to the Visit', async () => {
+        const visitId = '0Z5000000000001AAA';
+        const actionPlanId = '0PR000000000001AAA';
+        const element = createComponent({
+            recordTypeId: RECORD_TYPE_ID,
+            resumePage: 'Tasks',
+            visitId,
+            actionPlanId,
+            tasks: [
+                {
+                    genericTaskId: '0py000000000001AAA',
+                    name: 'Existing Topic',
+                    status: 'Pending',
+                    sequence: 2,
+                    required: false,
+                    completed: false
+                }
+            ]
+        });
+        await flushPromises();
+
+        buttonByLabel(element, 'New Topic').click();
+        await flushPromises();
+
+        const form = Array.from(element.shadowRoot.querySelectorAll('lightning-record-edit-form')).find(
+            (candidate) => candidate.objectApiName === 'GenericVisitTask'
+        );
+        expect(form.objectApiName).toBe('GenericVisitTask');
+        const fieldNames = Array.from(form.querySelectorAll('lightning-input-field')).map((field) =>
+            field.fieldName || field.getAttribute('field-name')
+        );
+        expect(fieldNames).toEqual([
+            'Name',
+            'Status',
+            'Description',
+            'StartDateTime',
+            'Sequence',
+            'VisitId',
+            'DefinitionReferenceId',
+            'IsRequired',
+            'EndDateTime'
+        ]);
+
+        const visitField = Array.from(form.querySelectorAll('lightning-input-field')).find(
+            (field) => (field.fieldName || field.getAttribute('field-name')) === 'VisitId'
+        );
+        expect(visitField.value).toBe(visitId);
+        expect(visitField.disabled).toBe(true);
+
+        form.submit = jest.fn();
+        form.dispatchEvent(new CustomEvent('submit', {
+            detail: {
+                fields: {
+                    Name: 'Walkaround Topic'
+                }
+            },
+            cancelable: true
+        }));
+        expect(form.submit).toHaveBeenCalledWith(expect.objectContaining({
+            Name: 'Walkaround Topic',
+            VisitId: visitId,
+            Status: 'Is Defined',
+            Sequence: 3,
+            IsRequired: false
+        }));
+
+        form.dispatchEvent(new CustomEvent('success', { detail: { id: '0py000000000002AAA' } }));
+        await flushPromises();
+
+        expect(getTaskList).toHaveBeenCalledWith({ visitId, actionPlanId });
     });
 });

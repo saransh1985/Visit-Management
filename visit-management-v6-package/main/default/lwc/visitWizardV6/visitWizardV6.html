@@ -757,49 +757,107 @@
 
     <template if:true={showTopicModal}>
         <section role="dialog" tabindex="-1" aria-modal="true" class="slds-modal slds-fade-in-open">
-            <div class="slds-modal__container">
-                <header class="slds-modal__header">
-                    <button class="slds-button slds-button_icon slds-modal__close" title="Close" onclick={closeTopicModal}>
-                        <lightning-icon icon-name="utility:close" alternative-text="Close" size="small"></lightning-icon>
-                    </button>
-                    <h2 class="slds-text-heading_medium">New Topic</h2>
-                </header>
-                <div class="slds-modal__content slds-p-around_medium">
-                    <div class="form-grid">
-                        <lightning-input
-                            data-new-topic-field
-                            data-field="name"
-                            type="text"
-                            label="Topic Name"
-                            value={newTopicForm.name}
-                            required
-                            onchange={handleNewTopicFieldChange}
-                        ></lightning-input>
-                        <lightning-input
-                            data-field="required"
-                            type="checkbox"
-                            label="Required"
-                            checked={newTopicForm.required}
-                            onchange={handleNewTopicFieldChange}
-                        ></lightning-input>
-                        <lightning-textarea
-                            data-field="description"
-                            label="Topic Details"
-                            value={newTopicForm.description}
-                            onchange={handleNewTopicFieldChange}
-                        ></lightning-textarea>
+            <div class="slds-modal__container modal-medium topic-modal">
+                <lightning-record-edit-form
+                    object-api-name="GenericVisitTask"
+                    onsubmit={handleNewTopicSubmit}
+                    onsuccess={handleNewTopicSuccess}
+                    onerror={handleNewTopicError}
+                >
+                    <header class="slds-modal__header">
+                        <button class="slds-button slds-button_icon slds-modal__close" title="Close" onclick={closeTopicModal}>
+                            <lightning-icon icon-name="utility:close" alternative-text="Close" size="small"></lightning-icon>
+                        </button>
+                        <h2 class="slds-text-heading_medium">New Topic</h2>
+                    </header>
+                    <div class="slds-modal__content slds-p-around_large topic-modal-content">
+                        <div class="topic-required-note">
+                            <abbr class="slds-required" title="required">*</abbr>
+                            = Required Information
+                        </div>
+                        <div class="topic-form-grid">
+                            <div class="topic-form-column">
+                                <lightning-input-field
+                                    data-new-topic-field
+                                    data-field="name"
+                                    field-name="Name"
+                                    value={newTopicForm.name}
+                                    required
+                                    onchange={handleNewTopicFieldChange}
+                                ></lightning-input-field>
+                                <lightning-input-field
+                                    data-field="status"
+                                    field-name="Status"
+                                    value={newTopicForm.status}
+                                    onchange={handleNewTopicFieldChange}
+                                ></lightning-input-field>
+                                <lightning-input-field
+                                    data-field="description"
+                                    field-name="Description"
+                                    value={newTopicForm.description}
+                                    onchange={handleNewTopicFieldChange}
+                                ></lightning-input-field>
+                                <lightning-input-field
+                                    data-field="startDateTime"
+                                    field-name="StartDateTime"
+                                    value={newTopicForm.startDateTime}
+                                    onchange={handleNewTopicFieldChange}
+                                ></lightning-input-field>
+                                <lightning-input-field
+                                    data-field="sequence"
+                                    field-name="Sequence"
+                                    value={newTopicForm.sequence}
+                                    onchange={handleNewTopicFieldChange}
+                                ></lightning-input-field>
+                            </div>
+                            <div class="topic-form-column">
+                                <lightning-input-field
+                                    field-name="VisitId"
+                                    value={createdVisitId}
+                                    disabled
+                                ></lightning-input-field>
+                                <lightning-input-field
+                                    data-field="definitionReferenceId"
+                                    field-name="DefinitionReferenceId"
+                                    value={newTopicForm.definitionReferenceId}
+                                    onchange={handleNewTopicFieldChange}
+                                ></lightning-input-field>
+                                <lightning-input-field
+                                    data-field="required"
+                                    field-name="IsRequired"
+                                    value={newTopicForm.required}
+                                    onchange={handleNewTopicFieldChange}
+                                ></lightning-input-field>
+                                <lightning-input-field
+                                    data-field="endDateTime"
+                                    field-name="EndDateTime"
+                                    value={newTopicForm.endDateTime}
+                                    onchange={handleNewTopicFieldChange}
+                                ></lightning-input-field>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <footer class="slds-modal__footer">
-                    <lightning-button label="Cancel" onclick={closeTopicModal}></lightning-button>
-                    <lightning-button
-                        variant="brand"
-                        label="Save"
-                        class="slds-m-left_x-small"
-                        disabled={newTopicSaveDisabled}
-                        onclick={handleNewTopicSubmit}
-                    ></lightning-button>
-                </footer>
+                    <footer class="slds-modal__footer">
+                        <lightning-button label="Cancel" onclick={closeTopicModal}></lightning-button>
+                        <lightning-button
+                            type="submit"
+                            label="Save & New"
+                            class="slds-m-left_x-small"
+                            data-save-mode="new"
+                            disabled={isBusy}
+                            onclick={setNewTopicSaveMode}
+                        ></lightning-button>
+                        <lightning-button
+                            type="submit"
+                            variant="brand"
+                            label="Save"
+                            class="slds-m-left_x-small"
+                            data-save-mode="close"
+                            disabled={isBusy}
+                            onclick={setNewTopicSaveMode}
+                        ></lightning-button>
+                    </footer>
+                </lightning-record-edit-form>
             </div>
         </section>
         <div class="slds-backdrop slds-backdrop_open"></div>

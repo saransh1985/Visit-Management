@@ -156,6 +156,35 @@
     max-width: min(96vw, 64rem);
 }
 
+.topic-modal {
+    width: min(96vw, 58rem);
+    max-width: min(96vw, 58rem);
+}
+
+.topic-modal-content {
+    min-height: 26rem;
+}
+
+.topic-required-note {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+}
+
+.topic-form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 2rem;
+    row-gap: 0.75rem;
+}
+
+.topic-form-column {
+    display: grid;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
 .modal-user-search {
     width: min(94vw, 56rem);
     max-width: min(94vw, 56rem);
@@ -375,6 +404,7 @@
 
     .stepbar,
     .form-grid,
+    .topic-form-grid,
     .lookup-row,
     .review-grid {
         grid-template-columns: 1fr;

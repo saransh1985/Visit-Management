@@ -31,7 +31,7 @@ import saveVisitProgress from '@salesforce/apex/VisitWizardV6Controller.saveVisi
 import getActionPlanStartInfo from '@salesforce/apex/VisitWizardV6Controller.getActionPlanStartInfo';
 import getActionPlanTemplateOption from '@salesforce/apex/VisitWizardV6Controller.getActionPlanTemplateOption';
 import saveActionPlanAndLoadTasks from '@salesforce/apex/VisitWizardV6Controller.saveActionPlanAndLoadTasks';
-import createCustomTopic from '@salesforce/apex/VisitWizardV6Controller.createCustomTopic';
+import getTaskList from '@salesforce/apex/VisitWizardV6Controller.getTaskList';
 import startTask from '@salesforce/apex/VisitWizardV6Controller.startTask';
 import saveTask from '@salesforce/apex/VisitWizardV6Controller.saveTask';
 import getTaskNotes from '@salesforce/apex/VisitWizardV6Controller.getTaskNotes';
@@ -129,6 +129,7 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
     hostActionClosing = false;
     userSearchStarted = false;
     userSearchTimer;
+    newTopicSaveMode = 'close';
     _recordId;
 
     actionPlanTemplatePickerFilter = {
@@ -587,10 +588,6 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
 
     get taskNoteSaveDisabled() {
         return this.isBusy || !this.hasRichTextContent(this.taskNoteBody);
-    }
-
-    get newTopicSaveDisabled() {
-        return this.isBusy || !this.hasValue(this.newTopicForm?.name);
     }
 
     get selectedVisitorIds() {
@@ -1094,16 +1091,33 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
     }
 
     openTopicModal() {
-        this.newTopicForm = {
-            name: '',
-            description: '',
-            required: false
-        };
+        this.resetNewTopicForm();
         this.showTopicModal = true;
     }
 
     closeTopicModal() {
         this.showTopicModal = false;
+    }
+
+    resetNewTopicForm() {
+        this.newTopicForm = {
+            name: '',
+            status: 'Is Defined',
+            description: '',
+            required: false,
+            startDateTime: null,
+            endDateTime: null,
+            definitionReferenceId: null,
+            sequence: this.nextTopicSequenceValue()
+        };
+        this.newTopicSaveMode = 'close';
+    }
+
+    nextTopicSequenceValue() {
+        const sequences = (this.tasks || [])
+            .map((task) => Number(task.sequence))
+            .filter((sequence) => Number.isFinite(sequence));
+        return sequences.length ? Math.max(...sequences) + 1 : 1;
     }
 
     handleNewTopicFieldChange(event) {
@@ -1113,41 +1127,65 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
         }
         this.newTopicForm = {
             ...this.newTopicForm,
-            [fieldName]: this.getInputValue(event.target)
+            [fieldName]: Object.prototype.hasOwnProperty.call(event.detail || {}, 'value')
+                ? event.detail.value
+                : this.getInputValue(event.target)
         };
     }
 
-    async handleNewTopicSubmit() {
-        const fields = Array.from(this.template.querySelectorAll('[data-new-topic-field]'));
-        const valid = fields.reduce((isValid, field) => {
-            const fieldValid = typeof field.reportValidity === 'function' ? field.reportValidity() : true;
-            return isValid && fieldValid;
-        }, true);
-        if (!valid || !this.hasValue(this.newTopicForm?.name)) {
+    setNewTopicSaveMode(event) {
+        this.newTopicSaveMode = event.target?.dataset?.saveMode || 'close';
+    }
+
+    handleNewTopicSubmit(event) {
+        event.preventDefault();
+        if (!this.createdVisitId) {
+            this.showToast('Visit Required', 'Create or save the Visit before adding a Topic.', 'error');
             return;
         }
 
+        const fields = { ...(event.detail?.fields || {}) };
+        fields.VisitId = this.createdVisitId;
+        fields.Status = fields.Status || this.newTopicForm.status || 'Is Defined';
+        if (!this.hasValue(fields.Sequence) && this.hasValue(this.newTopicForm.sequence)) {
+            fields.Sequence = Number(this.newTopicForm.sequence);
+        }
+        if (!this.hasValue(fields.IsRequired)) {
+            fields.IsRequired = Boolean(this.newTopicForm.required);
+        }
+
         this.loading = true;
+        event.target.submit(fields);
+    }
+
+    async handleNewTopicSuccess() {
         try {
-            const response = await createCustomTopic({
-                requestJson: JSON.stringify({
-                    visitId: this.createdVisitId,
-                    actionPlanId: this.actionPlanId,
-                    name: this.newTopicForm.name,
-                    description: this.newTopicForm.description,
-                    required: this.newTopicForm.required
-                })
+            const response = await getTaskList({
+                visitId: this.createdVisitId,
+                actionPlanId: this.actionPlanId
             });
             this.actionPlanId = response?.actionPlanId || this.actionPlanId;
             this.tasks = this.decorateTasks(response?.tasks || []);
             this.requiredTasksComplete = Boolean(response?.requiredTasksComplete);
-            this.showTopicModal = false;
             this.showToast('Topic Created', 'Topic added to this Visit.', 'success');
+            if (this.newTopicSaveMode === 'new') {
+                this.showTopicModal = false;
+                await Promise.resolve();
+                this.resetNewTopicForm();
+                this.showTopicModal = true;
+            } else {
+                this.showTopicModal = false;
+            }
         } catch (error) {
             this.handleError(error);
         } finally {
             this.loading = false;
         }
+    }
+
+    handleNewTopicError(event) {
+        this.loading = false;
+        this.handleError(event.detail);
     }
 
     handleTaskRowAction(event) {
