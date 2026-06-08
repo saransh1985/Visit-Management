@@ -586,6 +586,9 @@ public inherited sharing class VisitWizardV6Controller {
         } catch (DmlException e) {
             Database.rollback(savePoint);
             throw userError(firstDmlMessage(e));
+        } catch (Exception e) {
+            Database.rollback(savePoint);
+            throw userError(firstExceptionMessage(e));
         }
 
         SaveResponse response = new SaveResponse();
@@ -624,6 +627,7 @@ public inherited sharing class VisitWizardV6Controller {
         context.opportunities = opportunitySummaries(context.visitId);
     }
 
+    @TestVisible
     private static void applyAccountContext(LaunchContext context) {
         if (context.accountId == null) {
             return;
@@ -651,6 +655,7 @@ public inherited sharing class VisitWizardV6Controller {
     }
 
     @SuppressWarnings('PMD.ApexSOQLInjection')
+    @TestVisible
     private static SObject queryVisit(Id visitId) {
         if (visitId == null) {
             throw userError('Visit Id is required.');
@@ -673,6 +678,7 @@ public inherited sharing class VisitWizardV6Controller {
     }
 
     @SuppressWarnings('PMD.ApexSOQLInjection')
+    @TestVisible
     private static void loadActionPlanContext(LaunchContext context) {
         if (context.visitId == null || Schema.getGlobalDescribe().get(ACTION_PLAN_OBJECT) == null) {
             return;
@@ -692,6 +698,7 @@ public inherited sharing class VisitWizardV6Controller {
         context.actionPlanStatus = (String) plan.get('ActionPlanState');
     }
 
+    @TestVisible
     private static List<VisitWizardController.UserCandidate> selectedVisitors(Id visitId) {
         List<VisitWizardController.UserCandidate> selected = new List<VisitWizardController.UserCandidate>();
         if (visitId == null || Schema.getGlobalDescribe().get(VISITOR_OBJECT) == null) {
@@ -726,6 +733,7 @@ public inherited sharing class VisitWizardV6Controller {
         return selected;
     }
 
+    @TestVisible
     private static List<VisitWizardController.ContactCandidate> selectedContacts(Id visitId) {
         List<VisitWizardController.ContactCandidate> selected = new List<VisitWizardController.ContactCandidate>();
         if (visitId == null || Schema.getGlobalDescribe().get(VISITED_PARTY_OBJECT) == null) {
@@ -792,6 +800,7 @@ public inherited sharing class VisitWizardV6Controller {
         return response;
     }
 
+    @TestVisible
     private static Map<Id, SObject> queryGenericTasks(Id visitId) {
         Map<Id, SObject> tasks = new Map<Id, SObject>();
         if (visitId == null || Schema.getGlobalDescribe().get(GENERIC_VISIT_TASK_OBJECT) == null) {
@@ -921,6 +930,7 @@ public inherited sharing class VisitWizardV6Controller {
         if (Schema.getGlobalDescribe().get(VISITED_PARTY_OBJECT) == null) {
             return;
         }
+        List<Id> uniqueContactIds = uniqueIdsPreserveOrder(contactIds);
         Schema.DescribeSObjectResult visitedPartyDescribe = Schema.getGlobalDescribe().get(VISITED_PARTY_OBJECT).getDescribe();
         List<SObject> existing = Database.query('SELECT Id FROM VisitedParty WHERE VisitId = :visitId');
         if (!existing.isEmpty()) {
@@ -933,17 +943,23 @@ public inherited sharing class VisitWizardV6Controller {
         Map<Id, Contact> contacts = new Map<Id, Contact>([
             SELECT Id, Name
             FROM Contact
-            WHERE Id IN :contactIds
+            WHERE Id IN :uniqueContactIds
             WITH USER_MODE
         ]);
         Map<String, Schema.SObjectField> fields = objectFields(VISITED_PARTY_OBJECT);
         List<SObject> rows = new List<SObject>();
-        for (Id contactId : new Set<Id>(contactIds)) {
+        Integer rowIndex = 0;
+        for (Id contactId : uniqueContactIds) {
+            if (!contacts.containsKey(contactId)) {
+                continue;
+            }
             SObject row = Schema.getGlobalDescribe().get(VISITED_PARTY_OBJECT).newSObject();
             putIfCreateable(row, fields, 'VisitId', visitId);
             putIfCreateable(row, fields, 'ContactId', contactId);
-            putIfCreateable(row, fields, 'Name', contacts.containsKey(contactId) ? contacts.get(contactId).Name : 'Visited Party');
+            putIfCreateable(row, fields, 'Name', contacts.get(contactId).Name);
+            putIfCreateable(row, fields, 'IsPrimaryContact', rowIndex == 0);
             rows.add(row);
+            rowIndex++;
         }
         if (!rows.isEmpty()) {
             if (!visitedPartyDescribe.isCreateable()) {
@@ -1020,6 +1036,7 @@ public inherited sharing class VisitWizardV6Controller {
         return notes;
     }
 
+    @TestVisible
     private static void validateTaskCompletion(Id genericTaskId, Datetime startDateTime, Datetime endDateTime) {
         if (startDateTime == null) {
             throw userError('Start Date Time is required to complete a task.');
@@ -1035,6 +1052,7 @@ public inherited sharing class VisitWizardV6Controller {
         }
     }
 
+    @TestVisible
     private static Boolean hasEnhancedTaskNote(Id genericTaskId) {
         if (genericTaskId == null ||
             Schema.getGlobalDescribe().get(CONTENT_DOCUMENT_LINK_OBJECT) == null) {
@@ -1050,6 +1068,7 @@ public inherited sharing class VisitWizardV6Controller {
         ].isEmpty();
     }
 
+    @TestVisible
     private static void saveWizardMarkers(Id visitId, String resumePage, String stateJson, Id actionPlanId) {
         if (visitId == null) {
             return;
@@ -1062,6 +1081,7 @@ public inherited sharing class VisitWizardV6Controller {
         Database.update(Security.stripInaccessible(AccessType.UPDATABLE, new List<SObject>{ visitRecord }).getRecords(), AccessLevel.USER_MODE);
     }
 
+    @TestVisible
     private static Id latestActionPlanId(Id visitId) {
         if (visitId == null || Schema.getGlobalDescribe().get(ACTION_PLAN_OBJECT) == null) {
             return null;
@@ -1070,6 +1090,7 @@ public inherited sharing class VisitWizardV6Controller {
         return plans.isEmpty() ? null : (Id) plans[0].get('Id');
     }
 
+    @TestVisible
     private static Boolean requiredTasksComplete(List<TaskSummary> tasks) {
         for (TaskSummary task : tasks) {
             if (task.required && !task.completed) {
@@ -1079,6 +1100,7 @@ public inherited sharing class VisitWizardV6Controller {
         return true;
     }
 
+    @TestVisible
     private static Integer nextTopicSequence(Id visitId) {
         Map<String, Schema.SObjectField> fields = objectFields(GENERIC_VISIT_TASK_OBJECT);
         if (visitId == null ||
@@ -1096,6 +1118,7 @@ public inherited sharing class VisitWizardV6Controller {
         return ((Integer) tasks[0].get('Sequence')) + 1;
     }
 
+    @TestVisible
     private static void validateRequiredVisitFields(SObject visitRecord, Map<String, Schema.SObjectField> fields) {
         List<String> missingLabels = new List<String>();
         for (String fieldName : fields.keySet()) {
@@ -1117,6 +1140,7 @@ public inherited sharing class VisitWizardV6Controller {
         }
     }
 
+    @TestVisible
     private static void assertActiveUsers(List<Id> userIds) {
         Set<Id> uniqueIds = new Set<Id>(userIds);
         if (uniqueIds.isEmpty()) {
@@ -1134,6 +1158,7 @@ public inherited sharing class VisitWizardV6Controller {
         }
     }
 
+    @TestVisible
     private static void assertContactsBelongToAccount(Id accountId, List<Id> contactIds) {
         Set<Id> uniqueIds = new Set<Id>(contactIds);
         if (accountId == null || uniqueIds.isEmpty()) {
@@ -1151,6 +1176,7 @@ public inherited sharing class VisitWizardV6Controller {
         }
     }
 
+    @TestVisible
     private static List<String> visitFormFieldNames() {
         List<String> fields = new List<String>{
             'AccountId',
@@ -1175,6 +1201,7 @@ public inherited sharing class VisitWizardV6Controller {
         return available;
     }
 
+    @TestVisible
     private static void putVisitStatusInProgress(SObject record, Map<String, Schema.SObjectField> fields, Boolean creating) {
         if (!fields.containsKey('Status')) {
             return;
@@ -1222,6 +1249,7 @@ public inherited sharing class VisitWizardV6Controller {
         return fallbackValue;
     }
 
+    @TestVisible
     private static String firstActivePicklistValue(Schema.SObjectField fieldToken) {
         if (fieldToken == null) {
             return null;
@@ -1234,6 +1262,7 @@ public inherited sharing class VisitWizardV6Controller {
         return null;
     }
 
+    @TestVisible
     private static String activeOpportunityStage(String preferredStage) {
         Map<String, Schema.SObjectField> fields = Opportunity.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).fields.getMap();
         String preferred = activePicklistValue(fields.get('StageName'), preferredStage);
@@ -1248,6 +1277,7 @@ public inherited sharing class VisitWizardV6Controller {
         return 'Prospecting';
     }
 
+    @TestVisible
     private static String activePicklistValue(Schema.SObjectField fieldToken, String value) {
         if (fieldToken == null || String.isBlank(value)) {
             return null;
@@ -1260,6 +1290,7 @@ public inherited sharing class VisitWizardV6Controller {
         return null;
     }
 
+    @TestVisible
     private static Id defaultVisitRecordTypeId() {
         for (VisitWizardController.RecordTypeOption recordType : getVisitRecordTypesV6()) {
             if (recordType.defaultRecordTypeMapping) {
@@ -1270,10 +1301,12 @@ public inherited sharing class VisitWizardV6Controller {
         return recordTypes.isEmpty() ? null : (Id) recordTypes[0].value;
     }
 
+    @TestVisible
     private static String deriveTaskCategory(String taskName) {
         return !String.isBlank(taskName) && taskName.toLowerCase().contains('sales') ? 'Sales' : null;
     }
 
+    @TestVisible
     private static String visitDisplayName(Id visitId) {
         if (visitId == null) {
             return null;
@@ -1286,10 +1319,12 @@ public inherited sharing class VisitWizardV6Controller {
         }
     }
 
+    @TestVisible
     private static String stripHtml(String value) {
         return String.isBlank(value) ? '' : value.replaceAll('<[^>]+>', '').replace('&nbsp;', ' ').trim();
     }
 
+    @TestVisible
     private static Map<String, Object> parseRequest(String requestJson, String message) {
         if (String.isBlank(requestJson)) {
             throw userError(message);
@@ -1301,10 +1336,12 @@ public inherited sharing class VisitWizardV6Controller {
         }
     }
 
+    @TestVisible
     private static Map<String, Object> asMap(Object value) {
         return value instanceof Map<String, Object> ? (Map<String, Object>) value : new Map<String, Object>();
     }
 
+    @TestVisible
     private static List<Id> idsFromList(Object value) {
         List<Id> ids = new List<Id>();
         if (!(value instanceof List<Object>)) {
@@ -1321,6 +1358,21 @@ public inherited sharing class VisitWizardV6Controller {
         return ids;
     }
 
+    @TestVisible
+    private static List<Id> uniqueIdsPreserveOrder(List<Id> rawIds) {
+        List<Id> ids = new List<Id>();
+        Set<Id> seen = new Set<Id>();
+        List<Id> sourceIds = rawIds == null ? new List<Id>() : rawIds;
+        for (Id rawId : sourceIds) {
+            if (rawId != null && !seen.contains(rawId)) {
+                ids.add(rawId);
+                seen.add(rawId);
+            }
+        }
+        return ids;
+    }
+
+    @TestVisible
     private static Id toId(Object value) {
         if (value == null) {
             return null;
@@ -1340,6 +1392,7 @@ public inherited sharing class VisitWizardV6Controller {
         }
     }
 
+    @TestVisible
     private static Date toDate(Object value) {
         if (value == null || String.isBlank(String.valueOf(value))) {
             return null;
@@ -1347,6 +1400,7 @@ public inherited sharing class VisitWizardV6Controller {
         return Date.valueOf(String.valueOf(value));
     }
 
+    @TestVisible
     private static Datetime toDateTime(Object value) {
         if (value == null || String.isBlank(String.valueOf(value))) {
             return null;
@@ -1358,6 +1412,7 @@ public inherited sharing class VisitWizardV6Controller {
         }
     }
 
+    @TestVisible
     private static Decimal toDecimal(Object value) {
         if (value == null || String.isBlank(String.valueOf(value))) {
             return null;
@@ -1365,39 +1420,47 @@ public inherited sharing class VisitWizardV6Controller {
         return Decimal.valueOf(String.valueOf(value));
     }
 
+    @TestVisible
     private static String blankToNull(Object value) {
         return value == null || String.isBlank(String.valueOf(value)) ? null : String.valueOf(value);
     }
 
+    @TestVisible
     private static Object valueOrDefault(Object value, Object fallback) {
         return value == null || String.valueOf(value) == '' ? fallback : value;
     }
 
+    @TestVisible
     private static Object fieldValue(SObject record, String fieldName) {
         return record != null && hasField(String.valueOf(record.getSObjectType()), fieldName) ? record.get(fieldName) : null;
     }
 
+    @TestVisible
     private static Map<String, Schema.SObjectField> objectFields(String objectName) {
         Schema.SObjectType objectType = Schema.getGlobalDescribe().get(objectName);
         return objectType == null ? new Map<String, Schema.SObjectField>() : objectType.getDescribe().fields.getMap();
     }
 
+    @TestVisible
     private static Boolean hasField(String objectName, String fieldName) {
         return objectFields(objectName).containsKey(fieldName);
     }
 
+    @TestVisible
     private static void putIfCreateable(SObject record, Map<String, Schema.SObjectField> fields, String fieldName, Object value) {
         if (fields.containsKey(fieldName) && fields.get(fieldName).getDescribe().isCreateable()) {
             record.put(fieldName, coerceValue(value, fields.get(fieldName).getDescribe().getType()));
         }
     }
 
+    @TestVisible
     private static void putIfUpdateable(SObject record, Map<String, Schema.SObjectField> fields, String fieldName, Object value) {
         if (fields.containsKey(fieldName) && fields.get(fieldName).getDescribe().isUpdateable()) {
             record.put(fieldName, coerceValue(value, fields.get(fieldName).getDescribe().getType()));
         }
     }
 
+    @TestVisible
     private static void putIfUpdateableWhenChanged(
         SObject record,
         Map<String, Schema.SObjectField> fields,
@@ -1415,6 +1478,7 @@ public inherited sharing class VisitWizardV6Controller {
         record.put(fieldName, coerceValue(value, fields.get(fieldName).getDescribe().getType()));
     }
 
+    @TestVisible
     private static void putIfWritable(SObject record, Map<String, Schema.SObjectField> fields, String fieldName, Object value, Boolean creating) {
         if (creating) {
             putIfCreateable(record, fields, fieldName, value);
@@ -1423,6 +1487,7 @@ public inherited sharing class VisitWizardV6Controller {
         }
     }
 
+    @TestVisible
     private static String currentGenericTaskStatus(Id genericTaskId) {
         Map<String, Schema.SObjectField> fields = objectFields(GENERIC_VISIT_TASK_OBJECT);
         if (genericTaskId == null ||
@@ -1440,6 +1505,7 @@ public inherited sharing class VisitWizardV6Controller {
         return value == null ? null : String.valueOf(value);
     }
 
+    @TestVisible
     private static Object coerceValue(Object value, Schema.DisplayType fieldType) {
         if (value == null || String.valueOf(value) == '') {
             return null;
@@ -1468,10 +1534,24 @@ public inherited sharing class VisitWizardV6Controller {
         return value;
     }
 
+    @TestVisible
     private static String firstDmlMessage(DmlException e) {
         return e.getNumDml() > 0 ? e.getDmlMessage(0) : e.getMessage();
     }
 
+    @TestVisible
+    private static String firstExceptionMessage(Exception e) {
+        String message = e == null ? null : e.getMessage();
+        if (String.isBlank(message)) {
+            return 'Visit could not be saved. Please try again.';
+        }
+        if (message.contains('ORA-01427') || message.contains('single-row subquery returns more than one row')) {
+            return 'Visited parties could not be saved because Salesforce found more than one matching contact row. Remove the visited party, add it again, and click Next.';
+        }
+        return message;
+    }
+
+    @TestVisible
     private static AuraHandledException userError(String message) {
         AuraHandledException error = new AuraHandledException(message);
         error.setMessage(message);

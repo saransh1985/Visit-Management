@@ -54,7 +54,6 @@ const ROW_ACTION_START_TASK = 'start_task';
 const ROW_ACTION_SELECT_ACCOUNT = 'select_account';
 const ROW_ACTION_SELECT_ADDRESS = 'select_address';
 const ACCOUNT_CUSTOMER_NUMBER_FIELD = 'Customer_Account_Number__c';
-const ACCOUNT_DEALER_CODE_FIELD = 'Dealer_Code__c';
 const CONTACT_OBJECT_API_NAME = 'Contact';
 const VISIT_STATUS_IN_PROGRESS = 'InProgress';
 const ACTION_PLAN_STATUS_IN_PROGRESS = 'In Progress';
@@ -308,6 +307,23 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
         } catch {
             // Closing should never be blocked by best-effort save for later.
         }
+    }
+
+    renderedCallback() {
+        this.sizeHostModal();
+    }
+
+    sizeHostModal() {
+        const host = this.template?.host;
+        const modalContainer = host?.closest?.('.slds-modal__container');
+        if (!modalContainer || modalContainer.dataset.visitWizardV6Sized === 'true') {
+            return;
+        }
+
+        modalContainer.dataset.visitWizardV6Sized = 'true';
+        modalContainer.style.width = 'min(96vw, 112rem)';
+        modalContainer.style.maxWidth = 'min(96vw, 112rem)';
+        modalContainer.style.minWidth = 'min(72rem, 96vw)';
     }
 
     get panelHeader() {
@@ -583,7 +599,7 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
     }
 
     get selectedContactIds() {
-        return this.selectedContacts.map((contact) => contact.contactId);
+        return this.uniqueContactIds(this.selectedContacts);
     }
 
     get steps() {
@@ -643,7 +659,7 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
         }
         this.visitorCandidates = context?.visitorCandidates || [];
         this.selectedVisitors = context?.selectedVisitors?.length ? context.selectedVisitors : this.visitorCandidates.filter((visitor) => visitor.selected);
-        this.selectedContacts = context?.selectedContacts || [];
+        this.selectedContacts = this.uniqueContacts(context?.selectedContacts || []);
         this.actionPlanId = context?.actionPlanId;
         this.actionPlanName = context?.actionPlanName || '';
         this.actionPlanStartDate = context?.actionPlanStartDate || this.todayValue();
@@ -1588,8 +1604,9 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
         const fields = event.detail?.fields || {};
         const firstName = this.recordFormFieldValue(fields, 'FirstName') || this.newContactDraft.FirstName || '';
         const lastName = this.recordFormFieldValue(fields, 'LastName') || this.newContactDraft.LastName || '';
+        const contactId = this.normalizeContactId(event.detail.id);
         const contact = {
-            contactId: event.detail.id,
+            contactId,
             accountId: this.resolveAccountId(),
             name: `${firstName} ${lastName}`.trim() || this.recordFormFieldValue(fields, 'Name') || 'New Contact',
             email: this.recordFormFieldValue(fields, 'Email') || this.newContactDraft.Email,
@@ -1597,6 +1614,7 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
             title: this.recordFormFieldValue(fields, 'Title') || this.newContactDraft.Title
         };
         this.addContact(contact);
+        this.contactSearchResults = this.contactSearchResults.filter((candidate) => this.recordIdentityKey(candidate.contactId) !== this.recordIdentityKey(contactId));
         this.showCreateContactModal = false;
         this.showToast('Contact Created', 'Contact added to Visited Parties.', 'success');
     }
@@ -1637,19 +1655,23 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
             return;
         }
         this.addContact(event.detail.row);
-        this.contactSearchResults = this.contactSearchResults.filter((candidate) => candidate.contactId !== event.detail.row.contactId);
+        const addedId = this.normalizeContactId(event.detail.row?.contactId);
+        this.contactSearchResults = this.contactSearchResults.filter((candidate) => this.recordIdentityKey(candidate.contactId) !== this.recordIdentityKey(addedId));
     }
 
     addContact(contact) {
-        if (!contact || this.selectedContacts.some((selected) => selected.contactId === contact.contactId)) {
+        const contactId = this.normalizeContactId(contact?.contactId);
+        if (!contactId) {
             return;
         }
-        this.selectedContacts = [...this.selectedContacts, contact];
+        this.selectedContacts = this.uniqueContacts([...this.selectedContacts, { ...contact, contactId }]);
     }
 
     handleSelectedContactRowAction(event) {
         if (event.detail?.action?.name === ROW_ACTION_REMOVE) {
-            this.selectedContacts = this.selectedContacts.filter((contact) => contact.contactId !== event.detail.row.contactId);
+            const removedId = this.normalizeContactId(event.detail.row?.contactId);
+            const removedKey = this.recordIdentityKey(removedId);
+            this.selectedContacts = this.uniqueContacts(this.selectedContacts.filter((contact) => this.recordIdentityKey(contact.contactId) !== removedKey));
         }
     }
 
@@ -1839,7 +1861,7 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
             selectedRecordTypeId: this.selectedRecordTypeId,
             visitFormValues: this.visitFormValues,
             selectedVisitors: this.selectedVisitors,
-            selectedContacts: this.selectedContacts,
+            selectedContacts: this.uniqueContacts(this.selectedContacts),
             placeDisplayValue: this.placeDisplayValue,
             actionPlanId: this.actionPlanId,
             actionPlanName: this.actionPlanName,
@@ -1859,7 +1881,7 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
             this.selectedRecordTypeId = this.selectedRecordTypeId || state.selectedRecordTypeId;
             this.visitFormValues = { ...this.visitFormValues, ...(state.visitFormValues || {}) };
             this.selectedVisitors = state.selectedVisitors?.length ? state.selectedVisitors : this.selectedVisitors;
-            this.selectedContacts = state.selectedContacts?.length ? state.selectedContacts : this.selectedContacts;
+            this.selectedContacts = state.selectedContacts?.length ? this.uniqueContacts(state.selectedContacts) : this.uniqueContacts(this.selectedContacts);
             this.placeDisplayValue = state.placeDisplayValue || this.placeDisplayValue;
             this.actionPlanId = this.actionPlanId || state.actionPlanId;
             this.actionPlanName = this.actionPlanName || state.actionPlanName || '';
@@ -2060,6 +2082,43 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
 
     normalizeAccountId(value) {
         return this.normalizeRecordId(value, '001');
+    }
+
+    normalizeContactId(value) {
+        return this.normalizeRecordId(value, '003');
+    }
+
+    recordIdentityKey(value) {
+        const recordId = value ? String(value) : '';
+        return recordId.length >= 15 ? recordId.substring(0, 15) : recordId;
+    }
+
+    uniqueContactIds(contacts = []) {
+        const seen = new Set();
+        const contactIds = [];
+        (contacts || []).forEach((contact) => {
+            const contactId = this.normalizeContactId(contact?.contactId);
+            const key = this.recordIdentityKey(contactId);
+            if (contactId && !seen.has(key)) {
+                seen.add(key);
+                contactIds.push(contactId);
+            }
+        });
+        return contactIds;
+    }
+
+    uniqueContacts(contacts = []) {
+        const seen = new Set();
+        const unique = [];
+        (contacts || []).forEach((contact) => {
+            const contactId = this.normalizeContactId(contact?.contactId);
+            const key = this.recordIdentityKey(contactId);
+            if (contactId && !seen.has(key)) {
+                seen.add(key);
+                unique.push({ ...contact, contactId });
+            }
+        });
+        return unique;
     }
 
     normalizeRecordId(value, prefix) {
