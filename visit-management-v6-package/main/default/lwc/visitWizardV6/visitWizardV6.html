@@ -667,36 +667,28 @@
                     </button>
                     <h2 class="slds-text-heading_medium">Contact Record Type</h2>
                 </header>
-                <div class="slds-modal__content slds-p-around_medium">
-                    <table class="record-type-table" aria-label="Contact Record Types">
-                        <colgroup>
-                            <col class="record-type-name-col" />
-                            <col class="record-type-description-col" />
-                        </colgroup>
-                        <thead>
-                            <tr>
-                                <th class="record-type-name-header" scope="col">Recordtype name</th>
-                                <th class="record-type-description-header" scope="col">Description of that recordtype</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <template for:each={contactRecordTypeChoices} for:item="recordType">
-                                <tr key={recordType.value} class={recordType.className}>
-                                    <td class="record-type-name-cell">
-                                        <button
-                                            type="button"
-                                            class={recordType.buttonClass}
-                                            data-id={recordType.value}
-                                            onclick={handleContactRecordTypeChange}
-                                        >
-                                            {recordType.label}
-                                        </button>
-                                    </td>
-                                    <td class="record-type-description-cell">{recordType.description}</td>
-                                </tr>
-                            </template>
-                        </tbody>
-                    </table>
+                <div class="slds-modal__content slds-p-around_medium contact-record-type-content">
+                    <div class="record-type-grid" role="table" aria-label="Contact Record Types">
+                        <div class="record-type-grid-header" role="row">
+                            <div role="columnheader">Recordtype name</div>
+                            <div role="columnheader">Description</div>
+                        </div>
+                        <template for:each={contactRecordTypeChoices} for:item="recordType">
+                            <div key={recordType.value} class={recordType.className} role="row">
+                                <div class="record-type-name-cell" role="cell">
+                                    <button
+                                        type="button"
+                                        class={recordType.buttonClass}
+                                        data-id={recordType.value}
+                                        onclick={handleContactRecordTypeChange}
+                                    >
+                                        {recordType.label}
+                                    </button>
+                                </div>
+                                <div class="record-type-description-cell" role="cell">{recordType.description}</div>
+                            </div>
+                        </template>
+                    </div>
                 </div>
                 <footer class="slds-modal__footer">
                     <lightning-button label="Cancel" onclick={closeContactRecordTypeModal}></lightning-button>

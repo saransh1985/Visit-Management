@@ -127,8 +127,8 @@
 }
 
 .modal-medium {
-    width: min(94vw, 54rem);
-    max-width: min(94vw, 54rem);
+    width: min(96vw, 64rem);
+    max-width: min(96vw, 64rem);
 }
 
 .modal-user-search {
@@ -214,50 +214,48 @@
     --slds-c-button-spacing-inline-end: 0.75rem;
 }
 
-.record-type-table {
-    border: 0;
-    border-collapse: separate;
-    border-spacing: 0 0.5rem;
-    table-layout: fixed;
+.contact-record-type-content {
+    overflow-x: hidden;
+}
+
+.record-type-grid {
+    display: grid;
+    gap: 0.35rem;
     width: 100%;
 }
 
-.record-type-table th,
-.record-type-table td {
-    border: 0;
-    padding: 0.375rem 0.75rem;
-    vertical-align: middle;
-    white-space: normal;
+.record-type-grid-header,
+.record-type-choice {
+    align-items: center;
+    column-gap: 1.5rem;
+    display: grid;
+    grid-template-columns: 13rem minmax(0, 1fr);
 }
 
-.record-type-table th {
+.record-type-grid-header {
     color: var(--slds-g-color-neutral-base-30, #444);
     font-weight: 700;
-    text-align: left;
-}
-
-.record-type-table .record-type-choice.selected td {
-    background: var(--slds-g-color-brand-base-95, #eef4ff);
-}
-
-.record-type-name-col {
-    width: 13.5rem;
+    padding: 0 0.75rem 0.35rem;
 }
 
 .record-type-name-cell {
-    padding-left: 0.25rem;
-    padding-right: 1.25rem;
-}
-
-.record-type-description-cell,
-.record-type-description-header {
-    overflow-wrap: anywhere;
-    word-break: normal;
+    min-width: 0;
 }
 
 .record-type-description-cell {
     line-height: 1.4;
-    padding-left: 1.25rem;
+    min-width: 0;
+    overflow-wrap: normal;
+    white-space: normal;
+    word-break: normal;
+}
+
+.record-type-choice {
+    padding: 0.35rem 0.75rem;
+}
+
+.record-type-choice.selected {
+    background: var(--slds-g-color-brand-base-95, #eef4ff);
 }
 
 .record-type-action {
