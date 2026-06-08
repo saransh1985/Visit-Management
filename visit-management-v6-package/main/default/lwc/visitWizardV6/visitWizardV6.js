@@ -53,6 +53,7 @@ const ROW_ACTION_ADD = 'add';
 const ROW_ACTION_REMOVE = 'remove';
 const ROW_ACTION_SELECT_TEMPLATE = 'select_template';
 const ROW_ACTION_START_TASK = 'start_task';
+const ROW_ACTION_CREATE_OPPORTUNITY = 'create_opportunity';
 const ROW_ACTION_SELECT_ACCOUNT = 'select_account';
 const ROW_ACTION_SELECT_ADDRESS = 'select_address';
 const ACCOUNT_CUSTOMER_NUMBER_FIELD = 'Customer_Account_Number__c';
@@ -219,13 +220,6 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
         { label: 'Version', fieldName: 'versionNumber', type: 'number' },
         { label: 'Last Modified', fieldName: 'lastModifiedDate', type: 'date' },
         { type: 'button', fixedWidth: 96, typeAttributes: { label: 'Select', name: ROW_ACTION_SELECT_TEMPLATE, variant: 'base' } }
-    ];
-    taskColumns = [
-        { label: 'Topic', fieldName: 'name', wrapText: true },
-        { label: 'Status', fieldName: 'displayStatus' },
-        { label: 'Required', fieldName: 'requiredLabel' },
-        { label: 'Completed', fieldName: 'completedLabel' },
-        { type: 'button', fixedWidth: 110, typeAttributes: { label: { fieldName: 'taskActionLabel' }, name: ROW_ACTION_START_TASK, variant: 'brand-outline' } }
     ];
     reviewTaskColumns = [
         { label: 'Topic', fieldName: 'name', wrapText: true },
@@ -1305,10 +1299,28 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
     }
 
     handleTaskRowAction(event) {
-        if (event.detail?.action?.name !== ROW_ACTION_START_TASK) {
+        if (event.detail?.action?.name === ROW_ACTION_CREATE_OPPORTUNITY) {
+            this.openOpportunityForTask(event.detail.row);
             return;
         }
-        this.openTask(event.detail.row);
+        if (event.detail?.action?.name === ROW_ACTION_START_TASK) {
+            this.openTask(event.detail.row);
+        }
+    }
+
+    handleTaskButtonClick(event) {
+        this.openTask(this.findTaskByRowKey(event.currentTarget.dataset.taskKey));
+    }
+
+    handleCreateOpportunityFromTask(event) {
+        this.openOpportunityForTask(this.findTaskByRowKey(event.currentTarget.dataset.taskKey));
+    }
+
+    openOpportunityForTask(taskRow) {
+        if (!taskRow || taskRow.completed || !taskRow.salesTask) {
+            return;
+        }
+        this.openOpportunityModal();
     }
 
     async openTask(taskRow) {
@@ -1427,27 +1439,37 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
     }
 
     async openOpportunityModal() {
-        this.loading = true;
+        this.opportunityDefaults = {
+            closeDate: this.defaultOpportunityCloseDate(),
+            stageName: 'Draft'
+        };
+        this.opportunityForm = this.defaultOpportunityForm(this.opportunityDefaults);
+        this.showOpportunityModal = true;
         try {
             const defaults = await getOpportunityDefaults({ visitId: this.createdVisitId });
             this.opportunityDefaults = defaults;
             this.opportunityForm = {
-                name: `${this.accountName || 'Visit'} Opportunity`,
-                closeDate: defaults.closeDate,
-                stageName: defaults.stageName,
-                amount: null,
-                type: null,
-                description: null
+                ...this.opportunityForm,
+                closeDate: defaults.closeDate || this.opportunityForm.closeDate,
+                stageName: defaults.stageName || this.opportunityForm.stageName
             };
-            this.showOpportunityModal = true;
             if (defaults.warning) {
                 this.showToast('Opportunity Stage', defaults.warning, 'warning');
             }
         } catch (error) {
             this.handleError(error);
-        } finally {
-            this.loading = false;
         }
+    }
+
+    defaultOpportunityForm(defaults = {}) {
+        return {
+            name: `${this.accountName || 'Visit'} Opportunity`,
+            closeDate: defaults.closeDate || this.defaultOpportunityCloseDate(),
+            stageName: defaults.stageName || 'Draft',
+            amount: null,
+            type: null,
+            description: null
+        };
     }
 
     closeOpportunityModal() {
@@ -2106,11 +2128,27 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
     decorateTasks(tasks) {
         return (tasks || []).map((task) => ({
             ...task,
+            taskRowKey: this.taskRowKey(task),
+            salesTask: task.salesTask || this.isSalesTopicName(task.name),
             displayStatus: this.formatTaskStatus(task.itemState || task.status || 'Not Started'),
             requiredLabel: task.required ? 'Yes' : 'No',
             completedLabel: task.completed ? 'Yes' : 'No',
-            taskActionLabel: task.completed || task.itemState === 'InProgress' ? 'View' : 'Start'
+            taskActionLabel: task.completed || task.itemState === 'InProgress' ? 'View' : 'Start',
+            showCreateOpportunity: task.salesTask || this.isSalesTopicName(task.name),
+            createOpportunityDisabled: task.completed
         }));
+    }
+
+    findTaskByRowKey(rowKey) {
+        return (this.tasks || []).find((task) => task.taskRowKey === rowKey);
+    }
+
+    taskRowKey(task) {
+        return task?.genericTaskId || task?.actionPlanItemId || task?.name || '';
+    }
+
+    isSalesTopicName(name) {
+        return String(name || '').toLowerCase().includes('sales');
     }
 
     applyTaskDefaults(task) {
@@ -2238,6 +2276,13 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
 
     nowDateTimeValue() {
         return new Date().toISOString();
+    }
+
+    defaultOpportunityCloseDate() {
+        const closeDate = new Date();
+        closeDate.setDate(closeDate.getDate() + 30);
+        const localDate = new Date(closeDate.getTime() - closeDate.getTimezoneOffset() * 60000);
+        return localDate.toISOString().slice(0, 10);
     }
 
     hasValue(value) {

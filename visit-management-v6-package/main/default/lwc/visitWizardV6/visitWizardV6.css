@@ -185,6 +185,28 @@
     min-width: 0;
 }
 
+.topics-table-wrap {
+    overflow-x: auto;
+}
+
+.topics-table {
+    min-width: 64rem;
+}
+
+.topics-topic-name {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.topics-actions-header,
+.topics-actions-cell {
+    width: 16rem;
+}
+
+.topics-actions-cell {
+    white-space: nowrap;
+}
+
 .modal-user-search {
     width: min(94vw, 56rem);
     max-width: min(94vw, 56rem);

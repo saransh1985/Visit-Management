@@ -281,13 +281,68 @@
                         ></lightning-button>
                     </div>
                     <template if:true={hasTasks}>
-                        <lightning-datatable
-                            key-field="genericTaskId"
-                            data={tasks}
-                            columns={taskColumns}
-                            hide-checkbox-column
-                            onrowaction={handleTaskRowAction}
-                        ></lightning-datatable>
+                        <div class="topics-table-wrap">
+                            <table class="slds-table slds-table_cell-buffer slds-table_bordered topics-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">
+                                            <div class="slds-truncate" title="Topic">Topic</div>
+                                        </th>
+                                        <th scope="col">
+                                            <div class="slds-truncate" title="Status">Status</div>
+                                        </th>
+                                        <th scope="col">
+                                            <div class="slds-truncate" title="Required">Required</div>
+                                        </th>
+                                        <th scope="col">
+                                            <div class="slds-truncate" title="Completed">Completed</div>
+                                        </th>
+                                        <th scope="col" class="topics-actions-header">
+                                            <div class="slds-truncate" title="Actions">Actions</div>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template for:each={tasks} for:item="task">
+                                        <tr key={task.taskRowKey}>
+                                            <td data-label="Topic">
+                                                <div class="topics-topic-name" title={task.name}>{task.name}</div>
+                                            </td>
+                                            <td data-label="Status">
+                                                <div class="slds-truncate" title={task.displayStatus}>{task.displayStatus}</div>
+                                            </td>
+                                            <td data-label="Required">
+                                                <div class="slds-truncate" title={task.requiredLabel}>{task.requiredLabel}</div>
+                                            </td>
+                                            <td data-label="Completed">
+                                                <div class="slds-truncate" title={task.completedLabel}>{task.completedLabel}</div>
+                                            </td>
+                                            <td data-label="Actions" class="topics-actions-cell">
+                                                <button
+                                                    type="button"
+                                                    class="slds-button slds-button_neutral"
+                                                    data-task-key={task.taskRowKey}
+                                                    onclick={handleTaskButtonClick}
+                                                >
+                                                    {task.taskActionLabel}
+                                                </button>
+                                                <template if:true={task.showCreateOpportunity}>
+                                                    <button
+                                                        type="button"
+                                                        class="slds-button slds-button_brand slds-m-left_x-small"
+                                                        data-task-key={task.taskRowKey}
+                                                        disabled={task.createOpportunityDisabled}
+                                                        onclick={handleCreateOpportunityFromTask}
+                                                    >
+                                                        Create Opportunity
+                                                    </button>
+                                                </template>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
                     </template>
                     <template if:false={hasTasks}>
                         <div class="empty-state">No topics were imported for this Visit.</div>
@@ -340,14 +395,6 @@
                             onchange={handleTaskFieldChange}
                         ></lightning-input>
                     </div>
-                    <template if:true={activeTaskIsSales}>
-                        <lightning-button
-                            class="slds-m-top_medium"
-                            label="Create Opportunity"
-                            icon-name="utility:new"
-                            onclick={openOpportunityModal}
-                        ></lightning-button>
-                    </template>
                     <section class="notes-section slds-m-top_large">
                         <h3 class="slds-text-title_bold slds-m-bottom_small">Notes</h3>
                         <div class="note-composer">

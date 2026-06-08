@@ -511,6 +511,59 @@ describe('c-visit-wizard-v6', () => {
         expect(payload.actionPlanTemplateVersionId).toBe(TEMPLATE_VERSION_ID);
     });
 
+    it('shows Create Opportunity beside incomplete Sales topics and disables completed Sales topics', async () => {
+        const visitId = '0Z5000000000001AAA';
+        const actionPlanId = '0PR000000000001AAA';
+        const element = createComponent({
+            recordTypeId: RECORD_TYPE_ID,
+            resumePage: 'Tasks',
+            visitId,
+            actionPlanId,
+            tasks: [
+                {
+                    genericTaskId: '0py000000000001AAA',
+                    name: 'Review dealer parts sales pipeline',
+                    status: 'Pending',
+                    required: true,
+                    completed: false
+                },
+                {
+                    genericTaskId: '0py000000000002AAA',
+                    name: 'Confirm inventory gaps and critical SKUs',
+                    status: 'Pending',
+                    required: true,
+                    completed: false
+                },
+                {
+                    genericTaskId: '0py000000000003AAA',
+                    name: 'Schedule monthly sales checkpoint',
+                    status: 'Completed',
+                    required: false,
+                    completed: true
+                }
+            ]
+        });
+        getOpportunityDefaults.mockResolvedValue({
+            closeDate: '2026-06-30',
+            stageName: 'Draft'
+        });
+        await flushPromises();
+
+        const opportunityButtons = Array.from(element.shadowRoot.querySelectorAll('button, lightning-button')).filter(
+            (button) => (button.label || button.textContent.trim()) === 'Create Opportunity'
+        );
+        expect(opportunityButtons).toHaveLength(2);
+        expect(opportunityButtons[0].className).toContain('slds-button_brand');
+        expect(opportunityButtons[0].disabled).toBeFalsy();
+        expect(opportunityButtons[1].disabled).toBe(true);
+
+        opportunityButtons[0].click();
+        await flushPromises();
+
+        expect(getOpportunityDefaults).toHaveBeenCalledWith({ visitId });
+        expect(element.shadowRoot.querySelector('.slds-modal__header').textContent).toContain('Create Opportunity');
+    });
+
     it('opens New Topic as a Generic Visit Task-style form tied to the Visit', async () => {
         const visitId = '0Z5000000000001AAA';
         const actionPlanId = '0PR000000000001AAA';
