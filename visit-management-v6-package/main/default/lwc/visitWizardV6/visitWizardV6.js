@@ -2,7 +2,7 @@ import { LightningElement, api, track, wire } from 'lwc';
 import { CloseActionScreenEvent } from 'lightning/actions';
 import { CurrentPageReference, NavigationMixin } from 'lightning/navigation';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
-import { createRecord, getRecordCreateDefaults } from 'lightning/uiRecordApi';
+import { getRecordCreateDefaults, updateRecord } from 'lightning/uiRecordApi';
 import { getObjectInfo } from 'lightning/uiObjectInfoApi';
 import ACCOUNT_NAME_FIELD from '@salesforce/schema/Account.Name';
 import ACTION_PLAN_NAME_FIELD from '@salesforce/schema/ActionPlan.Name';
@@ -58,6 +58,7 @@ const ROW_ACTION_SELECT_ACCOUNT = 'select_account';
 const ROW_ACTION_SELECT_ADDRESS = 'select_address';
 const ACCOUNT_CUSTOMER_NUMBER_FIELD = 'Customer_Account_Number__c';
 const CONTACT_OBJECT_API_NAME = 'Contact';
+const OPPORTUNITY_OBJECT_API_NAME = 'Opportunity';
 const VISIT_STATUS_IN_PROGRESS = 'InProgress';
 const ACTION_PLAN_STATUS_IN_PROGRESS = 'In Progress';
 const TOPIC_STATUS_IN_PROGRESS = 'In Progress';
@@ -108,7 +109,6 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
     taskNoteTitle = '';
     taskNoteBody = '';
     opportunityDefaults;
-    opportunityForm = {};
     loading = false;
     visitDetailLoading = false;
     errorMessage;
@@ -155,6 +155,7 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
     ];
     visitNameFields = [VISIT_NAME_FIELD];
     visitReviewFields = [VISIT_NAME_FIELD, VISIT_ACCOUNT_FIELD, VISIT_STATUS_FIELD, VISIT_RECORD_TYPE_FIELD];
+    opportunityObjectApiName = OPPORTUNITY_OBJECT_API_NAME;
 
     visitorCandidateColumns = [
         { label: 'Name', fieldName: 'name' },
@@ -245,6 +246,9 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
 
     @wire(getObjectInfo, { objectApiName: CONTACT_OBJECT_API_NAME })
     contactObjectInfo;
+
+    @wire(getObjectInfo, { objectApiName: OPPORTUNITY_OBJECT_API_NAME })
+    opportunityObjectInfo;
 
     @wire(getRecordCreateDefaults, {
         objectApiName: CONTACT_OBJECT_API_NAME,
@@ -445,6 +449,46 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
         const label = (recordType?.label || '').toLowerCase();
         const developerName = (recordType?.developerName || '').toLowerCase();
         return label.includes('fleet') || developerName.includes('fleet');
+    }
+
+    get selectedVisitRecordType() {
+        return this.recordTypes.find((type) => type.value === this.selectedRecordTypeId);
+    }
+
+    get opportunityRecordTypeId() {
+        const selectedRecordType = this.selectedVisitRecordType;
+        const recordTypeInfos = this.opportunityObjectInfo?.data?.recordTypeInfos || {};
+        if (!selectedRecordType || !Object.keys(recordTypeInfos).length) {
+            return null;
+        }
+        const selectedDeveloperName = selectedRecordType.developerName;
+        const selectedLabel = selectedRecordType.label;
+        const matchingRecordType = Object.values(recordTypeInfos).find(
+            (recordTypeInfo) =>
+                recordTypeInfo.available &&
+                !recordTypeInfo.master &&
+                (recordTypeInfo.developerName === selectedDeveloperName || recordTypeInfo.name === selectedLabel)
+        );
+        return matchingRecordType?.recordTypeId || null;
+    }
+
+    get opportunityRecordTypeLoading() {
+        return this.showOpportunityModal && !this.opportunityObjectInfo?.data && !this.opportunityObjectInfo?.error;
+    }
+
+    get showOpportunityRecordForm() {
+        return this.showOpportunityModal && !!this.opportunityRecordTypeId && !this.opportunityObjectInfo?.error;
+    }
+
+    get opportunityRecordTypeError() {
+        if (this.opportunityObjectInfo?.error) {
+            return 'Opportunity metadata could not be loaded. Ask your Salesforce admin to check Opportunity access.';
+        }
+        if (this.opportunityObjectInfo?.data && !this.opportunityRecordTypeId) {
+            const visitRecordTypeName = this.selectedVisitRecordType?.label || 'the selected Visit record type';
+            return `No available Opportunity record type matches ${visitRecordTypeName}.`;
+        }
+        return null;
     }
 
     get hasSelectedVisitors() {
@@ -1451,16 +1495,10 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
             closeDate: this.defaultOpportunityCloseDate(),
             stageName: 'Draft'
         };
-        this.opportunityForm = this.defaultOpportunityForm(this.opportunityDefaults);
         this.showOpportunityModal = true;
         try {
             const defaults = await getOpportunityDefaults({ visitId: this.createdVisitId });
             this.opportunityDefaults = defaults;
-            this.opportunityForm = {
-                ...this.opportunityForm,
-                closeDate: defaults.closeDate || this.opportunityForm.closeDate,
-                stageName: defaults.stageName || this.opportunityForm.stageName
-            };
             if (defaults.warning) {
                 this.showToast('Opportunity Stage', defaults.warning, 'warning');
             }
@@ -1469,62 +1507,53 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
         }
     }
 
-    defaultOpportunityForm(defaults = {}) {
-        return {
-            name: `${this.accountName || 'Visit'} Opportunity`,
-            closeDate: defaults.closeDate || this.defaultOpportunityCloseDate(),
-            stageName: defaults.stageName || 'Draft',
-            amount: null,
-            type: null,
-            description: null
-        };
-    }
-
     closeOpportunityModal() {
         this.showOpportunityModal = false;
     }
 
-    handleOpportunityFieldChange(event) {
-        const fieldName = event.target.dataset.field;
-        if (fieldName) {
-            this.opportunityForm = { ...this.opportunityForm, [fieldName]: this.getInputValue(event.target) };
+    handleOpportunityFormSubmit(event) {
+        const fields = { ...event.detail.fields };
+        fields.RecordTypeId = this.opportunityRecordTypeId;
+        if (this.accountId) {
+            fields.AccountId = this.accountId;
+        }
+        if (this.createdVisitId) {
+            fields.Visit__c = this.createdVisitId;
+        }
+        if (!fields.StageName) {
+            fields.StageName = this.opportunityDefaults?.stageName || 'Draft';
+        }
+        if (!fields.CloseDate) {
+            fields.CloseDate = this.opportunityDefaults?.closeDate || this.defaultOpportunityCloseDate();
+        }
+        Object.assign(event.detail.fields, fields);
+        if (typeof event.target.submit === 'function') {
+            event.preventDefault();
+            event.target.submit(fields);
         }
     }
 
-    async handleOpportunitySubmit() {
-        const inputs = Array.from(this.template.querySelectorAll('[data-opportunity-field]'));
-        const valid = inputs.reduce((isValid, input) => {
-            const fieldValid = typeof input.reportValidity === 'function' ? input.reportValidity() : true;
-            return isValid && fieldValid;
-        }, true);
-        if (!valid) {
-            return;
-        }
+    async handleOpportunityFormSuccess(event) {
+        const createdRecordId = event.detail.id;
         this.loading = true;
         try {
-            const fields = {
-                Name: this.opportunityForm.name,
-                AccountId: this.accountId,
-                Visit__c: this.createdVisitId,
-                StageName: this.opportunityForm.stageName,
-                CloseDate: this.opportunityForm.closeDate
+            const updateFields = {
+                Id: createdRecordId,
+                RecordTypeId: this.opportunityRecordTypeId
             };
-            if (this.hasValue(this.opportunityForm.amount)) {
-                fields.Amount = Number(this.opportunityForm.amount);
+            if (this.accountId) {
+                updateFields.AccountId = this.accountId;
             }
-            if (this.hasValue(this.opportunityForm.type)) {
-                fields.Type = this.opportunityForm.type;
+            if (this.createdVisitId) {
+                updateFields.Visit__c = this.createdVisitId;
             }
-            if (this.hasValue(this.opportunityForm.description)) {
-                fields.Description = this.opportunityForm.description;
-            }
-            const createdRecord = await createRecord({ apiName: 'Opportunity', fields });
+            await updateRecord({ fields: updateFields });
             const opportunity = {
-                opportunityId: createdRecord.id,
-                name: fields.Name,
-                stageName: fields.StageName,
-                closeDate: fields.CloseDate,
-                amount: fields.Amount
+                opportunityId: createdRecordId,
+                name: event.detail.fields?.Name?.value || createdRecordId,
+                stageName: event.detail.fields?.StageName?.value,
+                closeDate: event.detail.fields?.CloseDate?.value,
+                amount: event.detail.fields?.Amount?.value
             };
             this.opportunities = [opportunity, ...this.opportunities];
             this.showOpportunityModal = false;
@@ -1534,6 +1563,10 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
         } finally {
             this.loading = false;
         }
+    }
+
+    handleOpportunityFormError(event) {
+        this.handleError(event.detail);
     }
 
     async handleTasksNext() {

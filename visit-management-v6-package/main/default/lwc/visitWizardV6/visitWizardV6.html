@@ -940,45 +940,34 @@
 
     <template if:true={showOpportunityModal}>
         <section role="dialog" tabindex="-1" aria-modal="true" class="slds-modal slds-fade-in-open">
-            <div class="slds-modal__container">
+            <div class="slds-modal__container modal-wide opportunity-layout-modal">
                 <header class="slds-modal__header">
                     <button class="slds-button slds-button_icon slds-modal__close" title="Close" onclick={closeOpportunityModal}>
                         <lightning-icon icon-name="utility:close" alternative-text="Close" size="small"></lightning-icon>
                     </button>
                     <h2 class="slds-text-heading_medium">Create Opportunity</h2>
                 </header>
-                <div class="slds-modal__content slds-p-around_medium">
-                    <div class="form-grid">
-                        <template if:true={hasCreatedVisitId}>
-                            <lightning-record-form
-                                object-api-name="Visit"
-                                record-id={createdVisitId}
-                                fields={visitNameFields}
-                                columns="1"
-                                mode="readonly"
-                            ></lightning-record-form>
-                        </template>
-                        <template if:true={hasAccountId}>
-                            <lightning-record-form
-                                object-api-name="Account"
-                                record-id={accountId}
-                                fields={accountNameFields}
-                                columns="1"
-                                mode="readonly"
-                            ></lightning-record-form>
-                        </template>
-                        <lightning-input data-opportunity-field data-field="name" type="text" label="Opportunity Name" value={opportunityForm.name} required onchange={handleOpportunityFieldChange}></lightning-input>
-                        <lightning-input type="text" label="Stage" value={opportunityForm.stageName} disabled></lightning-input>
-                        <lightning-input data-opportunity-field data-field="closeDate" type="date" label="Close Date" value={opportunityForm.closeDate} required onchange={handleOpportunityFieldChange}></lightning-input>
-                        <lightning-input data-field="amount" type="number" label="Amount" value={opportunityForm.amount} onchange={handleOpportunityFieldChange}></lightning-input>
-                        <lightning-input data-field="type" type="text" label="Type" value={opportunityForm.type} onchange={handleOpportunityFieldChange}></lightning-input>
-                        <lightning-input data-field="description" type="text" label="Description" value={opportunityForm.description} onchange={handleOpportunityFieldChange}></lightning-input>
-                    </div>
+                <div class="slds-modal__content slds-p-around_medium opportunity-layout-modal__content">
+                    <template if:true={opportunityRecordTypeLoading}>
+                        <lightning-spinner alternative-text="Loading Opportunity layout" size="medium"></lightning-spinner>
+                    </template>
+                    <template if:true={opportunityRecordTypeError}>
+                        <div class="slds-text-color_error slds-p-around_small">{opportunityRecordTypeError}</div>
+                    </template>
+                    <template if:true={showOpportunityRecordForm}>
+                        <lightning-record-form
+                            object-api-name={opportunityObjectApiName}
+                            record-type-id={opportunityRecordTypeId}
+                            layout-type="Full"
+                            columns="2"
+                            mode="edit"
+                            oncancel={closeOpportunityModal}
+                            onsubmit={handleOpportunityFormSubmit}
+                            onsuccess={handleOpportunityFormSuccess}
+                            onerror={handleOpportunityFormError}
+                        ></lightning-record-form>
+                    </template>
                 </div>
-                <footer class="slds-modal__footer">
-                    <lightning-button label="Cancel" onclick={closeOpportunityModal}></lightning-button>
-                    <lightning-button variant="brand" label="Submit" class="slds-m-left_x-small" onclick={handleOpportunitySubmit}></lightning-button>
-                </footer>
             </div>
         </section>
         <div class="slds-backdrop slds-backdrop_open"></div>

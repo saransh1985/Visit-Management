@@ -96,6 +96,7 @@ jest.mock('@salesforce/apex/VisitWizardV6Controller.completeVisit', () => ({ def
 const ACCOUNT_ID = '001000000000001AAA';
 const RECORD_TYPE_ID = '012000000000001AAA';
 const SECOND_RECORD_TYPE_ID = '012000000000002AAA';
+const OPPORTUNITY_RECORD_TYPE_ID = '012000000000005AAA';
 const CONTACT_RECORD_TYPE_ID = '012000000000003AAA';
 const SECOND_CONTACT_RECORD_TYPE_ID = '012000000000004AAA';
 const USER_ID = '005000000000001AAA';
@@ -203,6 +204,28 @@ function emitContactMetadata() {
     getContactRecordTypeDescriptions.emit({
         [CONTACT_RECORD_TYPE_ID]: 'This should be used for dealership contacts and should remain readable.',
         [SECOND_CONTACT_RECORD_TYPE_ID]: 'This should be used to create Contacts for Supplier.'
+    });
+}
+
+function emitOpportunityMetadata() {
+    getObjectInfo.emit({
+        defaultRecordTypeId: OPPORTUNITY_RECORD_TYPE_ID,
+        recordTypeInfos: {
+            [OPPORTUNITY_RECORD_TYPE_ID]: {
+                available: true,
+                master: false,
+                name: 'Fleet Visit',
+                developerName: 'Fleet_Service',
+                recordTypeId: OPPORTUNITY_RECORD_TYPE_ID
+            },
+            [SECOND_RECORD_TYPE_ID]: {
+                available: true,
+                master: false,
+                name: 'Dealer Visit',
+                developerName: 'Dealer_Visit',
+                recordTypeId: SECOND_RECORD_TYPE_ID
+            }
+        }
     });
 }
 
@@ -554,6 +577,8 @@ describe('c-visit-wizard-v6', () => {
             stageName: 'Draft'
         });
         await flushPromises();
+        emitOpportunityMetadata();
+        await flushPromises();
 
         const opportunityButtons = Array.from(element.shadowRoot.querySelectorAll('button, lightning-button')).filter(
             (button) => (button.label || button.textContent.trim()) === 'Create Opportunity'
@@ -568,6 +593,34 @@ describe('c-visit-wizard-v6', () => {
 
         expect(getOpportunityDefaults).toHaveBeenCalledWith({ visitId });
         expect(element.shadowRoot.querySelector('.slds-modal__header').textContent).toContain('Create Opportunity');
+        const opportunityForm = Array.from(element.shadowRoot.querySelectorAll('lightning-record-form')).find(
+            (form) => form.objectApiName === 'Opportunity' || form.getAttribute('object-api-name') === 'Opportunity'
+        );
+        expect(opportunityForm).toBeTruthy();
+        expect(opportunityForm.layoutType || opportunityForm.getAttribute('layout-type')).toBe('Full');
+        expect(opportunityForm.recordTypeId || opportunityForm.getAttribute('record-type-id')).toBe(OPPORTUNITY_RECORD_TYPE_ID);
+
+        opportunityForm.submit = jest.fn();
+        const submitFields = {
+            Name: 'Visit Opportunity'
+        };
+        opportunityForm.dispatchEvent(
+            new CustomEvent('submit', {
+                detail: {
+                    fields: submitFields
+                },
+                cancelable: true
+            })
+        );
+        expect(opportunityForm.submit).toHaveBeenCalledWith(
+            expect.objectContaining({
+                AccountId: ACCOUNT_ID,
+                Visit__c: visitId,
+                RecordTypeId: OPPORTUNITY_RECORD_TYPE_ID,
+                StageName: 'Draft',
+                CloseDate: '2026-06-30'
+            })
+        );
     });
 
     it('lets users save topic details without completing and shows Notes as mandatory', async () => {

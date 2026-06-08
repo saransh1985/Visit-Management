@@ -156,6 +156,15 @@
     max-width: min(94vw, 84rem);
 }
 
+.opportunity-layout-modal {
+    width: min(96vw, 96rem);
+    max-width: min(96vw, 96rem);
+}
+
+.opportunity-layout-modal__content {
+    min-height: 28rem;
+}
+
 .modal-medium {
     width: min(96vw, 64rem);
     max-width: min(96vw, 64rem);
