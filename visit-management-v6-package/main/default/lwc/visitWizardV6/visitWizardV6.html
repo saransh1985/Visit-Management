@@ -12,7 +12,7 @@
 
         <div class="wizard" data-source-account-id={accountId}>
             <template if:true={canEdit}>
-                <div class="stepbar stepbar_v6 slds-m-bottom_medium">
+                <div class="stepbar stepbar_v6 slds-m-bottom_medium" style={stepbarStyle}>
                     <template for:each={steps} for:item="stepItem">
                         <div key={stepItem.value} class={stepItem.className}>
                             <span class="step-number">{stepItem.number}</span>
@@ -559,13 +559,12 @@
     </template>
 
     <template if:true={showUserModal}>
-        <section role="dialog" tabindex="-1" aria-modal="true" class="slds-modal slds-fade-in-open">
-            <div class="slds-modal__container">
-                <header class="slds-modal__header">
+        <section role="dialog" tabindex="-1" aria-modal="true" aria-label="Add Visitor" class="slds-modal slds-fade-in-open">
+            <div class="slds-modal__container modal-user-search">
+                <header class="slds-modal__header modal-header_no-title">
                     <button class="slds-button slds-button_icon slds-modal__close" title="Close" onclick={closeUserModal}>
                         <lightning-icon icon-name="utility:close" alternative-text="Close" size="small"></lightning-icon>
                     </button>
-                    <h2 class="slds-text-heading_medium">Add Visitor</h2>
                 </header>
                 <div class="slds-modal__content slds-p-around_medium">
                     <div class="lookup-row">
@@ -581,7 +580,39 @@
                     <div class="slds-m-top_medium">
                         <h3 class="slds-text-title_bold slds-m-bottom_x-small">Active Users</h3>
                         <template if:true={hasUserSearchResults}>
-                            <lightning-datatable key-field="userId" data={userSearchResults} columns={userSearchColumns} hide-checkbox-column onrowaction={handleUserSearchRowAction}></lightning-datatable>
+                            <div class="user-search-table-wrap">
+                                <table class="user-search-table" aria-label="Active Users">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Name</th>
+                                            <th scope="col">Role</th>
+                                            <th scope="col">Email</th>
+                                            <th class="user-search-action-header" scope="col">Add</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <template for:each={userSearchResults} for:item="user">
+                                            <tr key={user.userId}>
+                                                <td>{user.name}</td>
+                                                <td>{user.role}</td>
+                                                <td>{user.email}</td>
+                                                <td class="user-search-action-cell">
+                                                    <button
+                                                        type="button"
+                                                        class="slds-button slds-button_icon slds-button_icon-border user-search-add"
+                                                        title="Add"
+                                                        data-user-id={user.userId}
+                                                        onclick={handleUserSearchAddClick}
+                                                    >
+                                                        <lightning-icon icon-name="utility:add" alternative-text="Add" size="x-small"></lightning-icon>
+                                                        <span class="slds-assistive-text">Add {user.name}</span>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
                         </template>
                         <template if:false={hasUserSearchResults}>
                             <div class="empty-state">{userSearchEmptyMessage}</div>

@@ -68,6 +68,7 @@ public inherited sharing class VisitWizardController {
         @AuraEnabled public String email;
         @AuraEnabled public String title;
         @AuraEnabled public String department;
+        @AuraEnabled public String role;
         @AuraEnabled public String source;
         @AuraEnabled public Boolean selected;
         @AuraEnabled public Boolean locked;
@@ -461,7 +462,7 @@ public inherited sharing class VisitWizardController {
         Id ownerId = (Id) accountRecord.get('OwnerId');
         SObject owner = null;
         List<User> owners = [
-            SELECT Id, Name, Email, Title, Department
+            SELECT Id, Name, Email, Title, Department, UserRole.Name
             FROM User
             WHERE Id = :ownerId
             AND IsActive = true
@@ -477,7 +478,7 @@ public inherited sharing class VisitWizardController {
         if (getObjectType('AccountTeamMember') != null) {
             try {
                 for (SObject teamMember : Database.query(
-                    'SELECT UserId, TeamMemberRole, User.Name, User.Email, User.Title, User.Department ' +
+                    'SELECT UserId, TeamMemberRole, User.Name, User.Email, User.Title, User.Department, User.UserRole.Name ' +
                     'FROM AccountTeamMember WHERE AccountId = :accountId AND User.IsActive = true ' +
                     'AND User.IsPortalEnabled = false ' +
                     'WITH USER_MODE ORDER BY User.Name LIMIT 200'
@@ -512,7 +513,7 @@ public inherited sharing class VisitWizardController {
 
         List<UserCandidate> results = new List<UserCandidate>();
         for (User userRecord : [
-            SELECT Id, Name, Email, Title, Department
+            SELECT Id, Name, Email, Title, Department, UserRole.Name
             FROM User
             WHERE IsActive = true
             AND IsPortalEnabled = false
@@ -1413,6 +1414,12 @@ public inherited sharing class VisitWizardController {
         candidate.email = userRecord == null ? null : (String) userRecord.get('Email');
         candidate.title = userRecord == null ? null : (String) userRecord.get('Title');
         candidate.department = userRecord == null ? null : (String) userRecord.get('Department');
+        try {
+            SObject userRole = userRecord == null ? null : userRecord.getSObject('UserRole');
+            candidate.role = userRole == null ? null : (String) userRole.get('Name');
+        } catch (SObjectException ignored) {
+            candidate.role = null;
+        }
         candidate.source = source;
         candidate.selected = selected;
         candidate.locked = locked;

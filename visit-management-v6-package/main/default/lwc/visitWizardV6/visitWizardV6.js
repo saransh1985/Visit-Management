@@ -196,9 +196,9 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
         { type: 'button', fixedWidth: 92, typeAttributes: { label: 'Select', name: ROW_ACTION_SELECT_ADDRESS, variant: 'brand-outline' } }
     ];
     userSearchColumns = [
-        { label: 'Name', fieldName: 'name' },
-        { label: 'Title', fieldName: 'title' },
-        { label: 'Email', fieldName: 'email', type: 'email' },
+        { label: 'Name', fieldName: 'name', wrapText: true },
+        { label: 'Role', fieldName: 'role', wrapText: true },
+        { label: 'Email', fieldName: 'email', type: 'email', wrapText: true },
         { type: 'button-icon', fixedWidth: 56, typeAttributes: { iconName: 'utility:add', name: ROW_ACTION_ADD, title: 'Add' } }
     ];
     selectedContactColumns = [
@@ -601,6 +601,10 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
             number: index + 1,
             className: stepItem.value === this.step ? 'step active' : stepItem.value < this.step ? 'step complete' : 'step'
         }));
+    }
+
+    get stepbarStyle() {
+        return `--step-count: ${this.steps.length}`;
     }
 
     async initialize() {
@@ -1384,6 +1388,13 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
         }
         this.addVisitor(event.detail.row);
         this.userSearchResults = this.userSearchResults.filter((candidate) => candidate.userId !== event.detail.row.userId);
+    }
+
+    handleUserSearchAddClick(event) {
+        const userId = event.currentTarget?.dataset?.userId;
+        const visitor = this.userSearchResults.find((candidate) => candidate.userId === userId);
+        this.addVisitor(visitor);
+        this.userSearchResults = this.userSearchResults.filter((candidate) => candidate.userId !== userId);
     }
 
     addVisitor(visitor) {
