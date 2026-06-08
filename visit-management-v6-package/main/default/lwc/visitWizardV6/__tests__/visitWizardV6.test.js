@@ -222,6 +222,12 @@ function buttonByLabel(element, label) {
     );
 }
 
+function nativeButtonByText(element, label) {
+    return Array.from(element.shadowRoot.querySelectorAll('button')).find(
+        (button) => button.textContent.trim() === label
+    );
+}
+
 describe('c-visit-wizard-v6', () => {
     afterEach(() => {
         while (document.body.firstChild) {
@@ -562,6 +568,60 @@ describe('c-visit-wizard-v6', () => {
 
         expect(getOpportunityDefaults).toHaveBeenCalledWith({ visitId });
         expect(element.shadowRoot.querySelector('.slds-modal__header').textContent).toContain('Create Opportunity');
+    });
+
+    it('lets users save topic details without completing and shows Notes as mandatory', async () => {
+        const visitId = '0Z5000000000001AAA';
+        const actionPlanId = '0PR000000000001AAA';
+        const genericTaskId = '0py000000000001AAA';
+        const element = createComponent({
+            recordTypeId: RECORD_TYPE_ID,
+            resumePage: 'Tasks',
+            visitId,
+            actionPlanId,
+            tasks: [
+                {
+                    genericTaskId,
+                    name: 'Review dealer parts sales pipeline',
+                    status: 'In Progress',
+                    itemState: 'InProgress',
+                    required: true,
+                    completed: false,
+                    startDateTime: '2026-06-08T17:00:00.000Z'
+                }
+            ]
+        });
+        await flushPromises();
+
+        nativeButtonByText(element, 'View').click();
+        await flushPromises();
+
+        expect(element.shadowRoot.querySelector('.required-help').textContent).toContain('Notes are mandatory');
+        expect(buttonByLabel(element, 'Back to Topics')).toBeTruthy();
+        expect(buttonByLabel(element, 'Save')).toBeTruthy();
+        expect(buttonByLabel(element, 'Complete Topic')).toBeTruthy();
+
+        buttonByLabel(element, 'Back to Topics').click();
+        await flushPromises();
+        expect(saveTask).not.toHaveBeenCalled();
+        expect(element.shadowRoot.querySelector('.topics-table')).toBeTruthy();
+
+        nativeButtonByText(element, 'View').click();
+        await flushPromises();
+        const descriptionInput = Array.from(element.shadowRoot.querySelectorAll('lightning-input')).find(
+            (input) => input.label === 'Topic Details'
+        );
+        descriptionInput.value = 'Saved but not completed';
+        descriptionInput.dispatchEvent(new CustomEvent('change'));
+        await flushPromises();
+
+        buttonByLabel(element, 'Save').click();
+        await flushPromises();
+
+        const payload = JSON.parse(saveTask.mock.calls.at(-1)[0].requestJson);
+        expect(payload.genericTaskId).toBe(genericTaskId);
+        expect(payload.description).toBe('Saved but not completed');
+        expect(payload.complete).toBe(false);
     });
 
     it('opens New Topic as a Generic Visit Task-style form tied to the Visit', async () => {

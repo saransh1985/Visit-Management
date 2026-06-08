@@ -1392,6 +1392,14 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
         this.showToast('Saved', 'Note saved.', 'success');
     }
 
+    handleTaskBack() {
+        this.activeTask = null;
+        this.taskNoteTitle = '';
+        this.taskNoteBody = '';
+        this.taskNotes = [];
+        this.step = STEP_TASK_LIST;
+    }
+
     async handleTaskSave() {
         await this.persistTask(false);
     }

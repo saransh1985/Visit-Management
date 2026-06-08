@@ -396,7 +396,11 @@
                         ></lightning-input>
                     </div>
                     <section class="notes-section slds-m-top_large">
-                        <h3 class="slds-text-title_bold slds-m-bottom_small">Notes</h3>
+                        <h3 class="slds-text-title_bold slds-m-bottom_x-small">
+                            <abbr class="slds-required" title="required">*</abbr>
+                            Notes
+                        </h3>
+                        <div class="required-help slds-m-bottom_small">* Notes are mandatory before completing the topic.</div>
                         <div class="note-composer">
                             <lightning-input
                                 type="text"
@@ -531,7 +535,8 @@
                 </template>
             </template>
             <template if:true={isTaskDetailStep}>
-                <lightning-button label="Back to Topics" onclick={handleTaskSave}></lightning-button>
+                <lightning-button label="Back to Topics" onclick={handleTaskBack}></lightning-button>
+                <lightning-button label="Save" class="slds-m-left_x-small" disabled={isBusy} onclick={handleTaskSave}></lightning-button>
                 <lightning-button variant="brand" label="Complete Topic" class="slds-m-left_x-small" disabled={taskCompleteDisabled} onclick={handleTaskComplete}></lightning-button>
             </template>
             <template if:true={isReviewStep}>

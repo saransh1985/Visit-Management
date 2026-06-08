@@ -138,6 +138,11 @@
     background: var(--slds-g-color-neutral-base-95, #f3f3f3);
 }
 
+.required-help {
+    color: var(--slds-g-color-error-base-40, #ba0517);
+    font-size: 0.8125rem;
+}
+
 .section-header {
     display: flex;
     justify-content: space-between;
