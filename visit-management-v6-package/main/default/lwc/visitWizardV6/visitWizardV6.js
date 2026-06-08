@@ -58,8 +58,10 @@ const ACCOUNT_CUSTOMER_NUMBER_FIELD = 'Customer_Account_Number__c';
 const CONTACT_OBJECT_API_NAME = 'Contact';
 const VISIT_STATUS_IN_PROGRESS = 'InProgress';
 const ACTION_PLAN_STATUS_IN_PROGRESS = 'In Progress';
+const TOPIC_STATUS_IN_PROGRESS = 'In Progress';
 const ACTION_PLAN_NAME_PREFIX = 'Template - ';
 const ACTION_PLAN_NAME_MAX_LENGTH = 255;
+const VISIT_DETAIL_LOADING_MIN_MS = 700;
 
 export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
     @track recordTypes = [];
@@ -130,6 +132,8 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
     userSearchStarted = false;
     userSearchTimer;
     newTopicSaveMode = 'close';
+    visitDetailLoadingStartedAt = 0;
+    visitDetailLoadingTimer;
     _recordId;
 
     actionPlanTemplatePickerFilter = {
@@ -299,6 +303,7 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
 
     disconnectedCallback() {
         window.clearTimeout(this.userSearchTimer);
+        window.clearTimeout(this.visitDetailLoadingTimer);
         if (!this.shouldSaveOnHostClose()) {
             return;
         }
@@ -713,21 +718,50 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
     }
 
     async loadVisitFields(recordTypeId) {
-        this.visitDetailLoading = true;
+        this.startVisitDetailLoading();
         this.errorMessage = null;
         try {
             const fields = await getVisitFieldMetadata({ recordTypeId });
             this.visitFields = this.mergeVisitFieldValues(fields || []);
+            if (!this.visitFields.length) {
+                this.finishVisitDetailLoading();
+            }
         } catch (error) {
+            this.clearVisitDetailLoading();
             this.handleError(error);
-        } finally {
-            this.visitDetailLoading = false;
         }
     }
 
     handleVisitFormLoad() {
-        this.visitDetailLoading = false;
+        this.finishVisitDetailLoading();
         Promise.resolve().then(() => this.applyStoredVisitValues());
+    }
+
+    startVisitDetailLoading() {
+        window.clearTimeout(this.visitDetailLoadingTimer);
+        this.visitDetailLoadingStartedAt = Date.now();
+        this.visitDetailLoading = true;
+    }
+
+    finishVisitDetailLoading() {
+        const elapsed = Date.now() - (this.visitDetailLoadingStartedAt || Date.now());
+        const remaining = Math.max(0, VISIT_DETAIL_LOADING_MIN_MS - elapsed);
+        window.clearTimeout(this.visitDetailLoadingTimer);
+        if (remaining === 0) {
+            this.visitDetailLoading = false;
+            this.visitDetailLoadingTimer = undefined;
+            return;
+        }
+        this.visitDetailLoadingTimer = window.setTimeout(() => {
+            this.visitDetailLoading = false;
+            this.visitDetailLoadingTimer = undefined;
+        }, remaining);
+    }
+
+    clearVisitDetailLoading() {
+        window.clearTimeout(this.visitDetailLoadingTimer);
+        this.visitDetailLoading = false;
+        this.visitDetailLoadingTimer = undefined;
     }
 
     async handleVisitDetailNext() {
@@ -1102,10 +1136,10 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
     resetNewTopicForm() {
         this.newTopicForm = {
             name: '',
-            status: 'Is Defined',
+            status: TOPIC_STATUS_IN_PROGRESS,
             description: '',
             required: false,
-            startDateTime: null,
+            startDateTime: this.nowDateTimeValue(),
             endDateTime: null,
             definitionReferenceId: null,
             sequence: this.nextTopicSequenceValue()
@@ -1146,7 +1180,7 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
 
         const fields = { ...(event.detail?.fields || {}) };
         fields.VisitId = this.createdVisitId;
-        fields.Status = fields.Status || this.newTopicForm.status || 'Is Defined';
+        fields.Status = fields.Status || this.newTopicForm.status || TOPIC_STATUS_IN_PROGRESS;
         if (!this.hasValue(fields.Sequence) && this.hasValue(this.newTopicForm.sequence)) {
             fields.Sequence = Number(this.newTopicForm.sequence);
         }

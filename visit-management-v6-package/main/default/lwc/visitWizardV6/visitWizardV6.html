@@ -38,12 +38,6 @@
             <template if:true={selectedRecordTypeId}>
                 <section class={visitDetailSectionClass}>
                     <h2 class="slds-text-heading_small slds-m-bottom_small">Visit Details</h2>
-                    <template if:true={visitDetailLoading}>
-                        <div class="inline-loading" aria-live="polite">
-                            <lightning-spinner alternative-text="Loading Visit details" size="small"></lightning-spinner>
-                            <span>Loading Visit details</span>
-                        </div>
-                    </template>
                     <div class="form-grid slds-m-bottom_small">
                         <div class="lookup-row">
                             <lightning-input
@@ -73,6 +67,12 @@
                             ></lightning-record-form>
                         </template>
                     </div>
+                    <template if:true={visitDetailLoading}>
+                        <div class="inline-loading" aria-live="polite">
+                            <lightning-spinner alternative-text="Loading Visit fields" size="small"></lightning-spinner>
+                            <span>Loading Visit fields</span>
+                        </div>
+                    </template>
                     <lightning-record-edit-form
                         class={visitFormClass}
                         object-api-name="Visit"
@@ -807,6 +807,7 @@
                                     data-field="sequence"
                                     field-name="Sequence"
                                     value={newTopicForm.sequence}
+                                    disabled
                                     onchange={handleNewTopicFieldChange}
                                 ></lightning-input-field>
                             </div>

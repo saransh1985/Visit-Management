@@ -487,8 +487,17 @@ describe('c-visit-wizard-v6', () => {
         const visitField = Array.from(form.querySelectorAll('lightning-input-field')).find(
             (field) => (field.fieldName || field.getAttribute('field-name')) === 'VisitId'
         );
+        const sequenceField = Array.from(form.querySelectorAll('lightning-input-field')).find(
+            (field) => (field.fieldName || field.getAttribute('field-name')) === 'Sequence'
+        );
+        const startDateTimeField = Array.from(form.querySelectorAll('lightning-input-field')).find(
+            (field) => (field.fieldName || field.getAttribute('field-name')) === 'StartDateTime'
+        );
         expect(visitField.value).toBe(visitId);
         expect(visitField.disabled).toBe(true);
+        expect(sequenceField.value).toBe(3);
+        expect(sequenceField.disabled).toBe(true);
+        expect(startDateTimeField.value).toBeTruthy();
 
         form.submit = jest.fn();
         form.dispatchEvent(new CustomEvent('submit', {
@@ -502,7 +511,7 @@ describe('c-visit-wizard-v6', () => {
         expect(form.submit).toHaveBeenCalledWith(expect.objectContaining({
             Name: 'Walkaround Topic',
             VisitId: visitId,
-            Status: 'Is Defined',
+            Status: 'In Progress',
             Sequence: 3,
             IsRequired: false
         }));
