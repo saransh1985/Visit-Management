@@ -29,6 +29,7 @@ import searchContacts from '@salesforce/apex/VisitWizardV6Controller.searchConta
 import saveForLater from '@salesforce/apex/VisitWizardV6Controller.saveForLater';
 import saveVisitProgress from '@salesforce/apex/VisitWizardV6Controller.saveVisitProgress';
 import getActionPlanStartInfo from '@salesforce/apex/VisitWizardV6Controller.getActionPlanStartInfo';
+import getActionPlanTemplateOption from '@salesforce/apex/VisitWizardV6Controller.getActionPlanTemplateOption';
 import saveActionPlanAndLoadTasks from '@salesforce/apex/VisitWizardV6Controller.saveActionPlanAndLoadTasks';
 import createCustomTopic from '@salesforce/apex/VisitWizardV6Controller.createCustomTopic';
 import startTask from '@salesforce/apex/VisitWizardV6Controller.startTask';
@@ -57,6 +58,8 @@ const ACCOUNT_CUSTOMER_NUMBER_FIELD = 'Customer_Account_Number__c';
 const CONTACT_OBJECT_API_NAME = 'Contact';
 const VISIT_STATUS_IN_PROGRESS = 'InProgress';
 const ACTION_PLAN_STATUS_IN_PROGRESS = 'In Progress';
+const ACTION_PLAN_NAME_PREFIX = 'Template - ';
+const ACTION_PLAN_NAME_MAX_LENGTH = 255;
 
 export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
     @track recordTypes = [];
@@ -988,28 +991,61 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
         }
     }
 
-    handleActionPlanTemplateLookupChange(event) {
+    async handleActionPlanTemplateLookupChange(event) {
         const hasRecordId = Object.prototype.hasOwnProperty.call(event.detail || {}, 'recordId');
-        this.actionPlanTemplateVersionId = hasRecordId ? event.detail.recordId : event.detail?.value || null;
+        const templateVersionId = hasRecordId ? event.detail.recordId : event.detail?.value || null;
+        this.actionPlanTemplateVersionId = templateVersionId;
+
+        if (!templateVersionId) {
+            this.actionPlanName = '';
+            return;
+        }
+
+        const recentTemplate = this.recentActionPlanTemplates.find(
+            (template) => template.templateVersionId === templateVersionId
+        );
+        if (recentTemplate) {
+            this.actionPlanName = this.actionPlanNameForTemplate(recentTemplate.templateName || recentTemplate.name);
+            return;
+        }
+
+        try {
+            const option = await getActionPlanTemplateOption({ templateVersionId });
+            if (this.actionPlanTemplateVersionId === templateVersionId) {
+                this.actionPlanName = this.actionPlanNameForTemplate(option?.templateName || option?.name);
+            }
+        } catch (error) {
+            this.handleError(error);
+        }
     }
 
     async handleRecentTemplateRowAction(event) {
         if (event.detail?.action?.name === ROW_ACTION_SELECT_TEMPLATE) {
-            await this.selectActionPlanTemplate(event.detail.row.templateVersionId);
+            await this.selectActionPlanTemplate(event.detail.row);
         }
     }
 
-    async selectActionPlanTemplate(templateVersionId) {
+    async selectActionPlanTemplate(template) {
+        const templateVersionId = template?.templateVersionId;
         if (!templateVersionId) {
             return;
         }
         this.actionPlanTemplateVersionId = null;
         await Promise.resolve();
         this.actionPlanTemplateVersionId = templateVersionId;
+        this.actionPlanName = this.actionPlanNameForTemplate(template.templateName || template.name);
         const picker = this.template.querySelector('[data-action-plan-template-picker]');
         if (picker) {
             picker.value = templateVersionId;
         }
+    }
+
+    actionPlanNameForTemplate(templateName) {
+        const name = `${ACTION_PLAN_NAME_PREFIX}${templateName || ''}`;
+        if (name.length <= ACTION_PLAN_NAME_MAX_LENGTH) {
+            return name;
+        }
+        return `${name.slice(0, ACTION_PLAN_NAME_MAX_LENGTH - 2)}..`;
     }
 
     async handleActionPlanNext() {

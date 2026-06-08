@@ -725,6 +725,12 @@ public inherited sharing class VisitWizardController {
         return template == null ? null : (String) template.get('ActionPlanType');
     }
 
+    @AuraEnabled(cacheable=true)
+    public static ActionPlanTemplateOption getActionPlanTemplateOption(Id templateVersionId) {
+        SObject templateVersion = actionPlanTemplateVersionForVisit(templateVersionId);
+        return toActionPlanTemplateOption(templateVersion, actionPlanTemplateForVersion(templateVersion));
+    }
+
     @TestVisible
     private static SaveRequest saveRequestFromJson(Object rawPayload) {
         if (!(rawPayload instanceof Map<String, Object>)) {
@@ -1151,7 +1157,7 @@ public inherited sharing class VisitWizardController {
         List<SObject> templateVersions = Test.isRunningTest() && testActionPlanTemplateVersionForVisit != null
             ? new List<SObject>{ testActionPlanTemplateVersionForVisit }
             : Database.query(
-                'SELECT Id, Name, Status, ActionPlanTemplateId ' +
+                'SELECT Id, Name, Status, Version, LastModifiedDate, ActionPlanTemplateId ' +
                 'FROM ActionPlanTemplateVersion ' +
                 'WHERE Id = :templateVersionId ' +
                 'WITH USER_MODE ' +
@@ -1183,20 +1189,20 @@ public inherited sharing class VisitWizardController {
 
     @TestVisible
     private static ActionPlanTemplateOption toActionPlanTemplateOption(SObject templateVersion) {
-        return toActionPlanTemplateOption(templateVersion, templateVersion.getSObject('ActionPlanTemplate'));
+        return toActionPlanTemplateOption(templateVersion, actionPlanTemplateForVersion(templateVersion));
     }
 
     @TestVisible
     private static ActionPlanTemplateOption toActionPlanTemplateOption(SObject templateVersion, SObject template) {
         ActionPlanTemplateOption option = new ActionPlanTemplateOption();
-        option.templateVersionId = (Id) templateVersion.get('Id');
-        option.templateId = (Id) templateVersion.get('ActionPlanTemplateId');
-        option.name = template == null ? (String) templateVersion.get('Name') : (String) template.get('Name');
+        option.templateVersionId = (Id) populatedValue(templateVersion, 'Id');
+        option.templateId = (Id) populatedValue(templateVersion, 'ActionPlanTemplateId');
+        option.name = template == null ? (String) populatedValue(templateVersion, 'Name') : (String) populatedValue(template, 'Name');
         option.templateName = option.name;
-        option.status = (String) templateVersion.get('Status');
-        option.actionPlanType = template == null ? null : (String) template.get('ActionPlanType');
-        option.versionNumber = (Integer) templateVersion.get('Version');
-        option.lastModifiedDate = (Datetime) templateVersion.get('LastModifiedDate');
+        option.status = (String) populatedValue(templateVersion, 'Status');
+        option.actionPlanType = template == null ? null : (String) populatedValue(template, 'ActionPlanType');
+        option.versionNumber = (Integer) populatedValue(templateVersion, 'Version');
+        option.lastModifiedDate = (Datetime) populatedValue(templateVersion, 'LastModifiedDate');
         return option;
     }
 
@@ -1205,9 +1211,11 @@ public inherited sharing class VisitWizardController {
         if (templateVersion == null) {
             return null;
         }
-        SObject relationshipTemplate = templateVersion.getSObject('ActionPlanTemplate');
-        if (relationshipTemplate != null) {
-            return relationshipTemplate;
+        if (templateVersion.getPopulatedFieldsAsMap().containsKey('ActionPlanTemplate')) {
+            SObject relationshipTemplate = templateVersion.getSObject('ActionPlanTemplate');
+            if (relationshipTemplate != null) {
+                return relationshipTemplate;
+            }
         }
         Id templateId = (Id) templateVersion.get('ActionPlanTemplateId');
         if (templateId == null) {
@@ -1238,6 +1246,14 @@ public inherited sharing class VisitWizardController {
         return template != null &&
             (String) template.get('Status') == 'Final' &&
             !String.isBlank((String) template.get('ActionPlanType'));
+    }
+
+    private static Object populatedValue(SObject record, String fieldName) {
+        if (record == null) {
+            return null;
+        }
+        Map<String, Object> values = record.getPopulatedFieldsAsMap();
+        return values.containsKey(fieldName) ? values.get(fieldName) : null;
     }
 
     @TestVisible

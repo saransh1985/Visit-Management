@@ -17,6 +17,7 @@ import searchContacts from '@salesforce/apex/VisitWizardV6Controller.searchConta
 import saveForLater from '@salesforce/apex/VisitWizardV6Controller.saveForLater';
 import saveVisitProgress from '@salesforce/apex/VisitWizardV6Controller.saveVisitProgress';
 import getActionPlanStartInfo from '@salesforce/apex/VisitWizardV6Controller.getActionPlanStartInfo';
+import getActionPlanTemplateOption from '@salesforce/apex/VisitWizardV6Controller.getActionPlanTemplateOption';
 import saveActionPlanAndLoadTasks from '@salesforce/apex/VisitWizardV6Controller.saveActionPlanAndLoadTasks';
 import createCustomTopic from '@salesforce/apex/VisitWizardV6Controller.createCustomTopic';
 import startTask from '@salesforce/apex/VisitWizardV6Controller.startTask';
@@ -79,6 +80,7 @@ jest.mock('@salesforce/apex/VisitWizardV6Controller.searchContacts', () => ({ de
 jest.mock('@salesforce/apex/VisitWizardV6Controller.saveForLater', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/VisitWizardV6Controller.saveVisitProgress', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/VisitWizardV6Controller.getActionPlanStartInfo', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/VisitWizardV6Controller.getActionPlanTemplateOption', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/VisitWizardV6Controller.saveActionPlanAndLoadTasks', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/VisitWizardV6Controller.createCustomTopic', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/VisitWizardV6Controller.startTask', () => ({ default: jest.fn() }), { virtual: true });
@@ -98,6 +100,7 @@ const USER_ID = '005000000000001AAA';
 const CREATED_CONTACT_ID = '003000000000010AAA';
 const EXISTING_CONTACT_ID = '003000000000011AAA';
 const PLACE_ID = '130000000000001AAA';
+const TEMPLATE_VERSION_ID = '0PT000000000001AAA';
 
 async function flushPromises() {
     for (let i = 0; i < 12; i += 1) {
@@ -164,6 +167,7 @@ function defaultMocks(contextOverrides = {}) {
     saveForLater.mockResolvedValue({ visitId: '0Z5000000000001AAA', resumePage: 'Visitors' });
     saveVisitProgress.mockResolvedValue({ visitId: '0Z5000000000001AAA', resumePage: 'Visitors' });
     getActionPlanStartInfo.mockResolvedValue({ statusOptions: [], recentTemplates: [], defaultStatus: 'In Progress' });
+    getActionPlanTemplateOption.mockResolvedValue({ templateVersionId: TEMPLATE_VERSION_ID, name: 'Resolved Template' });
     saveActionPlanAndLoadTasks.mockResolvedValue({ tasks: [], requiredTasksComplete: true });
     createCustomTopic.mockResolvedValue({ tasks: [], requiredTasksComplete: true });
     startTask.mockResolvedValue({ tasks: [], requiredTasksComplete: true });
@@ -372,5 +376,68 @@ describe('c-visit-wizard-v6', () => {
                 name: 'Existing Account Contact'
             })
         ]);
+    });
+
+    it('locks Meeting Template name and derives it from the selected recent template', async () => {
+        const templateName = `DTNA ${'Meeting Template '.repeat(18)}`;
+        const expectedName = `Template - ${templateName}`.slice(0, 253) + '..';
+        const element = createComponent({
+            recordTypeId: RECORD_TYPE_ID,
+            resumePage: 'ActionPlan',
+            visitId: '0Z5000000000001AAA',
+            visitName: '00000282',
+            visitValues: {
+                AccountId: ACCOUNT_ID,
+                PlaceId: PLACE_ID,
+                VisitPriority: 'Medium'
+            }
+        });
+        getActionPlanStartInfo.mockResolvedValue({
+            statusOptions: [{ label: 'In Progress', value: 'In Progress' }],
+            defaultStatus: 'In Progress',
+            recentTemplates: [
+                {
+                    templateVersionId: TEMPLATE_VERSION_ID,
+                    name: templateName,
+                    templateName,
+                    actionPlanType: 'Retail',
+                    versionNumber: 1
+                }
+            ]
+        });
+        await flushPromises();
+
+        let nameInput = Array.from(element.shadowRoot.querySelectorAll('lightning-input')).find(
+            (input) => input.label === 'Name'
+        );
+        expect(nameInput.disabled).toBe(true);
+
+        element.shadowRoot.querySelector('lightning-datatable').dispatchEvent(new CustomEvent('rowaction', {
+            detail: {
+                action: { name: 'select_template' },
+                row: {
+                    templateVersionId: TEMPLATE_VERSION_ID,
+                    name: templateName,
+                    templateName
+                }
+            }
+        }));
+        await flushPromises();
+
+        nameInput = Array.from(element.shadowRoot.querySelectorAll('lightning-input')).find(
+            (input) => input.label === 'Name'
+        );
+        expect(nameInput.value).toBe(expectedName);
+        expect(nameInput.value).toHaveLength(255);
+
+        Array.from(element.shadowRoot.querySelectorAll('[data-action-plan-field]')).forEach((field) => {
+            field.reportValidity = jest.fn(() => true);
+        });
+        buttonByLabel(element, 'Next').click();
+        await flushPromises();
+
+        const payload = JSON.parse(saveActionPlanAndLoadTasks.mock.calls.at(-1)[0].requestJson);
+        expect(payload.name).toBe(expectedName);
+        expect(payload.actionPlanTemplateVersionId).toBe(TEMPLATE_VERSION_ID);
     });
 });

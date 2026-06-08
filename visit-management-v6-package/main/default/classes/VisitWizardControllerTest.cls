@@ -1072,6 +1072,30 @@ private class VisitWizardControllerTest {
         System.assertEquals('Visit', option.actionPlanType);
         System.assertEquals(1, option.versionNumber);
 
+        VisitWizardController.testActionPlanTemplateVersionForVisit = templateVersionRecord;
+        VisitWizardController.ActionPlanTemplateOption selectedOption =
+            VisitWizardController.getActionPlanTemplateOption(templateVersionId);
+        System.assertEquals('Published Visit Template', selectedOption.name);
+        VisitWizardController.testActionPlanTemplateVersionForVisit = null;
+
+        SObject templateVersionWithoutRelationship = (SObject) JSON.deserialize(
+            '{"attributes":{"type":"ActionPlanTemplateVersion"},' +
+            '"Id":"0PT000000000001",' +
+            '"Name":"Published Visit Template Version",' +
+            '"ActionPlanTemplateId":"0PR000000000001",' +
+            '"Status":"Final"}',
+            SObject.class
+        );
+        System.assertEquals(
+            null,
+            VisitWizardController.actionPlanTemplateForVersion(templateVersionWithoutRelationship),
+            'Bare template version rows should fall back to an Id lookup instead of reading an unloaded relationship.'
+        );
+        VisitWizardController.ActionPlanTemplateOption bareOption =
+            VisitWizardController.toActionPlanTemplateOption(templateVersionWithoutRelationship);
+        System.assertEquals('Published Visit Template Version', bareOption.name);
+        System.assertEquals(null, bareOption.versionNumber);
+
         try {
             VisitWizardController.actionPlanTemplateVersionForVisit((Id) '0PT000000000002');
             System.assert(false, 'Expected missing template validation.');
