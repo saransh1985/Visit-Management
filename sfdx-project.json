@@ -11,10 +11,18 @@
     {
       "path": "visit-management-v5",
       "default": false,
-      "package": "Visit Management V5",
-      "versionName": "Version 5.0.1",
-      "versionNumber": "5.0.1.NEXT",
-      "versionDescription": "Automotive Cloud Visit wizard V5 with Visitors, Visited Parties, optional Action Plans, and the Account quick action"
+      "package": "Visit Management V5 Automotive",
+      "versionName": "Version 5.0.6",
+      "versionNumber": "5.0.6.NEXT",
+      "versionDescription": "Org-dependent Automotive Cloud Visit Management V5 package with LWC, Flow, OmniScript launchers, Account quick actions, Visitors, Visited Parties, and optional Action Plans"
+    },
+    {
+      "path": "visit-management-v6-package",
+      "default": false,
+      "package": "Visit Management V6 Automotive",
+      "versionName": "Version 6.0.0",
+      "versionNumber": "6.0.0.NEXT",
+      "versionDescription": "Automotive Cloud Visit Management V6 package with LWC V6, Flow V6, Visit record types, actions, Meeting Template topics, and review support"
     }
   ],
   "name": "automotive-visit-wizard",
@@ -26,6 +34,22 @@
     "Visit Management@1.0.0-5": "04tg7000000AfY9AAK",
     "Visit Management V5": "0Hog70000000SCPCA2",
     "Visit Management V5@5.0.0-1": "04tg7000000AgXRAA0",
-    "Visit Management V5@5.0.1-1": "04tg7000000AhIDAA0"
+    "Visit Management V5@5.0.1-1": "04tg7000000AhIDAA0",
+    "Visit Management V5 Automotive": "0Hog70000000UAzCAM",
+    "Visit Management V5 Automotive@5.0.2-1": "04tg7000000BDWbAAO",
+    "Visit Management V5 Automotive@5.0.3-1": "04tg7000000BE2rAAG",
+    "Visit Management V5 Automotive@5.0.4-1": "04tg7000000BE9JAAW",
+    "Visit Management V5 Automotive@5.0.5-1": "04tg7000000BEAvAAO",
+    "Visit Management V5 Automotive@5.0.6-1": "04tg7000000BECXAA4",
+    "Visit Management V6 Automotive": "0Hog70000000UsXCAU",
+    "Visit Management V6 Automotive@6.0.0-2": "04tg7000000BbNeAAK",
+    "Visit Management V6 Automotive@6.0.0-3": "04tg7000000BiddAAC",
+    "Visit Management V6 Automotive@6.0.0-4": "04tg7000000BitlAAC",
+    "Visit Management V6 Automotive@6.0.0-5": "04tg7000000Bj1pAAC",
+    "Visit Management V6 Automotive@6.0.0-6": "04tg7000000Bj8HAAS",
+    "Visit Management V6 Automotive@6.0.0-7": "04tg7000000Bj9tAAC",
+    "Visit Management V6 Automotive@6.0.0-8": "04tg7000000BjBVAA0",
+    "Visit Management V6 Automotive@6.0.0-9": "04tg7000000BjLBAA0",
+    "Visit Management V6 Automotive@6.0.0-10": "04tg7000000Bo37AAC"
   }
 }

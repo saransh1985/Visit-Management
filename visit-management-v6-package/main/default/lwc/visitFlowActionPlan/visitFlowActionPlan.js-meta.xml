@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>Visit Flow Meeting Template</masterLabel>
+    <targets>
+        <target>lightning__FlowScreen</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__FlowScreen">
+            <property name="visitId" type="String" label="Visit Id" role="inputOnly" required="true"/>
+            <property name="actionPlanName" type="String" label="Meeting Template Name"/>
+            <property name="actionPlanStartDate" type="Date" label="Meeting Template Start Date"/>
+            <property name="actionPlanTemplateVersionId" type="String" label="Meeting Template Version Id"/>
+            <property name="actionPlanTargetRecordId" type="String" label="Meeting Template Target Record Id"/>
+            <property name="actionPlanStatus" type="String" label="Meeting Template Status"/>
+            <property name="actionPlanType" type="String" label="Meeting Template Type"/>
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

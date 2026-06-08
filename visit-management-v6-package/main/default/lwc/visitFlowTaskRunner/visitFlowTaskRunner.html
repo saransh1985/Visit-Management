@@ -1,0 +1,374 @@
+<template>
+    <div class="task-runner">
+        <template if:true={loading}>
+            <lightning-spinner alternative-text="Loading Visit task details"></lightning-spinner>
+        </template>
+
+        <template if:true={errorMessage}>
+            <div class="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium" role="alert">
+                <span>{errorMessage}</span>
+            </div>
+        </template>
+
+        <template if:true={isTaskListScreen}>
+            <section>
+                <div class="section-header">
+                    <h2 class="slds-text-heading_small">Topics</h2>
+                    <lightning-button
+                        label="New Topic"
+                        icon-name="utility:add"
+                        disabled={loading}
+                        onclick={openTopicModal}
+                    ></lightning-button>
+                </div>
+                <template if:true={hasTasks}>
+                    <lightning-datatable
+                        key-field="rowKey"
+                        data={tasks}
+                        columns={taskColumns}
+                        hide-checkbox-column
+                        onrowaction={handleTaskRowAction}
+                    ></lightning-datatable>
+                    <template if:true={requiredTasksComplete}>
+                        <div class="slds-m-top_medium slds-align_absolute-center">
+                            <lightning-button
+                                variant="brand"
+                                label="Next"
+                                icon-name="utility:forward"
+                                onclick={handleTasksNext}
+                            ></lightning-button>
+                        </div>
+                    </template>
+                    <template if:false={requiredTasksComplete}>
+                        <div class="slds-text-color_weak slds-m-top_medium">Complete all required topics to continue.</div>
+                    </template>
+                </template>
+                <template if:false={hasTasks}>
+                    <div class="empty-state">No topics were imported for this Visit.</div>
+                    <div class="slds-m-top_medium slds-align_absolute-center">
+                        <lightning-button
+                            variant="brand"
+                            label="Review"
+                            icon-name="utility:forward"
+                            onclick={handleTasksNext}
+                        ></lightning-button>
+                    </div>
+                </template>
+            </section>
+        </template>
+
+        <template if:true={isTaskDetailScreen}>
+            <section>
+                <h2 class="slds-text-heading_small slds-m-bottom_small">{activeTask.name}</h2>
+                <div class="form-grid">
+                    <lightning-input
+                        type="text"
+                        label="Status"
+                        value={activeTask.displayStatus}
+                        disabled
+                    ></lightning-input>
+                    <lightning-input
+                        data-task-field
+                        data-field="startDateTime"
+                        type="datetime"
+                        label="Start Date Time"
+                        value={activeTask.startDateTime}
+                        required
+                        onchange={handleTaskFieldChange}
+                    ></lightning-input>
+                    <lightning-input
+                        data-task-field
+                        data-task-end
+                        data-field="endDateTime"
+                        type="datetime"
+                        label="End Date Time"
+                        value={activeTask.endDateTime}
+                        min={taskEndDateTimeMin}
+                        required
+                        message-when-range-underflow="End Date Time must be after Start Date Time."
+                        onchange={handleTaskFieldChange}
+                    ></lightning-input>
+                    <lightning-textarea
+                        data-field="description"
+                        label="Topic Details"
+                        value={activeTask.description}
+                        onchange={handleTaskFieldChange}
+                    ></lightning-textarea>
+                </div>
+
+                <template if:true={activeTaskIsSales}>
+                    <div class="slds-m-top_medium">
+                        <lightning-button
+                            label="Create Opportunity"
+                            icon-name="utility:new"
+                            onclick={openOpportunityModal}
+                        ></lightning-button>
+                    </div>
+                </template>
+
+                <section class="slds-m-top_large">
+                    <h3 class="slds-text-title_bold slds-m-bottom_small">Notes</h3>
+                    <div class="note-composer">
+                        <lightning-input
+                            type="text"
+                            label="Note Title"
+                            value={taskNoteTitle}
+                            onchange={handleTaskNoteTitleChange}
+                        ></lightning-input>
+                        <lightning-input-rich-text
+                            label="Note"
+                            value={taskNoteBody}
+                            required
+                            onchange={handleTaskNoteBodyChange}
+                        ></lightning-input-rich-text>
+                        <lightning-button
+                            label="Save Note"
+                            icon-name="utility:save"
+                            disabled={loading}
+                            onclick={handleTaskNoteSave}
+                        ></lightning-button>
+                    </div>
+                    <template if:true={hasTaskNotes}>
+                        <div class="note-list">
+                            <template for:each={taskNotes} for:item="note">
+                                <article key={note.contentNoteId} class="note-item">
+                                    <div class="note-title">{note.title}</div>
+                                    <div class="note-meta">{note.createdByName}</div>
+                                    <lightning-formatted-rich-text value={note.body}></lightning-formatted-rich-text>
+                                </article>
+                            </template>
+                        </div>
+                    </template>
+                    <template if:false={hasTaskNotes}>
+                        <div class="empty-state slds-m-top_small">No notes have been captured for this topic.</div>
+                    </template>
+                </section>
+
+                <div class="slds-m-top_large slds-align_absolute-center">
+                    <lightning-button label="Back to Topics" onclick={handleTaskSave}></lightning-button>
+                    <lightning-button
+                        variant="brand"
+                        label="Complete Topic"
+                        class="slds-m-left_x-small"
+                        disabled={taskCompleteDisabled}
+                        onclick={handleTaskComplete}
+                    ></lightning-button>
+                </div>
+            </section>
+        </template>
+
+        <template if:true={isReviewScreen}>
+            <section>
+                <h2 class="slds-text-heading_small slds-m-bottom_x-small">Review</h2>
+                <div class="slds-text-color_weak slds-m-bottom_medium">{reviewIntro}</div>
+                <div class="review-grid">
+                    <section>
+                        <h3 class="slds-text-title_bold slds-m-bottom_x-small">Visit Details</h3>
+                        <lightning-record-form
+                            object-api-name="Visit"
+                            record-id={visitId}
+                            fields={visitReviewFields}
+                            columns="1"
+                            mode="readonly"
+                        ></lightning-record-form>
+                    </section>
+                    <section>
+                        <h3 class="slds-text-title_bold slds-m-bottom_x-small">Meeting Template</h3>
+                        <template if:true={hasActionPlan}>
+                            <lightning-record-form
+                                object-api-name="ActionPlan"
+                                record-id={actionPlanId}
+                                fields={actionPlanReviewFields}
+                                columns="1"
+                                mode="readonly"
+                            ></lightning-record-form>
+                        </template>
+                        <template if:false={hasActionPlan}>
+                            <div class="empty-state">No Meeting Template was created for this Visit.</div>
+                        </template>
+                    </section>
+                    <section>
+                        <h3 class="slds-text-title_bold slds-m-bottom_x-small">Visitors</h3>
+                        <template if:true={hasSelectedVisitors}>
+                            <template for:each={selectedVisitors} for:item="visitor">
+                                <div key={visitor.userId}>{visitor.name}</div>
+                            </template>
+                        </template>
+                        <template if:false={hasSelectedVisitors}>
+                            <div class="empty-state">No visitors found.</div>
+                        </template>
+                    </section>
+                    <section>
+                        <h3 class="slds-text-title_bold slds-m-bottom_x-small">Attendees</h3>
+                        <template if:true={hasSelectedContacts}>
+                            <template for:each={selectedContacts} for:item="contact">
+                                <div key={contact.contactId}>{contact.name}</div>
+                            </template>
+                        </template>
+                        <template if:false={hasSelectedContacts}>
+                            <div class="empty-state">No attendees found.</div>
+                        </template>
+                    </section>
+                </div>
+
+                <div class="slds-m-top_large">
+                    <h3 class="slds-text-title_bold slds-m-bottom_x-small">Topic Snapshot</h3>
+                    <template if:true={hasTasks}>
+                        <lightning-datatable
+                            key-field="rowKey"
+                            data={tasks}
+                            columns={reviewTaskColumns}
+                            hide-checkbox-column
+                        ></lightning-datatable>
+                    </template>
+                    <template if:false={hasTasks}>
+                        <div class="empty-state">No topics on this Visit.</div>
+                    </template>
+                </div>
+
+                <div class="slds-m-top_large">
+                    <h3 class="slds-text-title_bold slds-m-bottom_x-small">Related Opportunities</h3>
+                    <template if:true={hasOpportunities}>
+                        <lightning-datatable
+                            key-field="opportunityId"
+                            data={opportunities}
+                            columns={opportunityColumns}
+                            hide-checkbox-column
+                        ></lightning-datatable>
+                    </template>
+                    <template if:false={hasOpportunities}>
+                        <div class="empty-state">No Opportunity was created from this Visit flow.</div>
+                    </template>
+                </div>
+
+                <div class="slds-m-top_large slds-align_absolute-center">
+                    <lightning-button
+                        variant="brand"
+                        label="Complete"
+                        disabled={loading}
+                        onclick={handleCompleteVisit}
+                    ></lightning-button>
+                </div>
+            </section>
+        </template>
+    </div>
+
+    <template if:true={showOpportunityModal}>
+        <section role="dialog" tabindex="-1" aria-modal="true" class="slds-modal slds-fade-in-open">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <button class="slds-button slds-button_icon slds-modal__close" title="Close" onclick={closeOpportunityModal}>
+                        <lightning-icon icon-name="utility:close" alternative-text="Close" size="small"></lightning-icon>
+                    </button>
+                    <h2 class="slds-text-heading_medium">Create Opportunity</h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <div class="form-grid">
+                        <lightning-input type="text" label="Account" value={opportunityDefaults.accountName} disabled></lightning-input>
+                        <lightning-input type="text" label="Visit" value={visitId} disabled></lightning-input>
+                        <lightning-input
+                            data-opportunity-field
+                            data-field="name"
+                            type="text"
+                            label="Opportunity Name"
+                            value={opportunityForm.name}
+                            required
+                            onchange={handleOpportunityFieldChange}
+                        ></lightning-input>
+                        <lightning-input type="text" label="Stage" value={opportunityForm.stageName} disabled></lightning-input>
+                        <lightning-input
+                            data-opportunity-field
+                            data-field="closeDate"
+                            type="date"
+                            label="Close Date"
+                            value={opportunityForm.closeDate}
+                            required
+                            onchange={handleOpportunityFieldChange}
+                        ></lightning-input>
+                        <lightning-input
+                            data-field="amount"
+                            type="number"
+                            label="Amount"
+                            value={opportunityForm.amount}
+                            onchange={handleOpportunityFieldChange}
+                        ></lightning-input>
+                        <lightning-input
+                            data-field="type"
+                            type="text"
+                            label="Type"
+                            value={opportunityForm.type}
+                            onchange={handleOpportunityFieldChange}
+                        ></lightning-input>
+                        <lightning-textarea
+                            data-field="description"
+                            label="Description"
+                            value={opportunityForm.description}
+                            onchange={handleOpportunityFieldChange}
+                        ></lightning-textarea>
+                    </div>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Cancel" onclick={closeOpportunityModal}></lightning-button>
+                    <lightning-button
+                        variant="brand"
+                        label="Submit"
+                        class="slds-m-left_x-small"
+                        disabled={loading}
+                        onclick={handleOpportunitySubmit}
+                    ></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+
+    <template if:true={showTopicModal}>
+        <section role="dialog" tabindex="-1" aria-modal="true" class="slds-modal slds-fade-in-open">
+            <div class="slds-modal__container">
+                <header class="slds-modal__header">
+                    <button class="slds-button slds-button_icon slds-modal__close" title="Close" onclick={closeTopicModal}>
+                        <lightning-icon icon-name="utility:close" alternative-text="Close" size="small"></lightning-icon>
+                    </button>
+                    <h2 class="slds-text-heading_medium">New Topic</h2>
+                </header>
+                <div class="slds-modal__content slds-p-around_medium">
+                    <div class="form-grid">
+                        <lightning-input
+                            data-new-topic-field
+                            data-field="name"
+                            type="text"
+                            label="Topic Name"
+                            value={newTopicForm.name}
+                            required
+                            onchange={handleNewTopicFieldChange}
+                        ></lightning-input>
+                        <lightning-input
+                            data-field="required"
+                            type="checkbox"
+                            label="Required"
+                            checked={newTopicForm.required}
+                            onchange={handleNewTopicFieldChange}
+                        ></lightning-input>
+                        <lightning-textarea
+                            data-field="description"
+                            label="Topic Details"
+                            value={newTopicForm.description}
+                            onchange={handleNewTopicFieldChange}
+                        ></lightning-textarea>
+                    </div>
+                </div>
+                <footer class="slds-modal__footer">
+                    <lightning-button label="Cancel" onclick={closeTopicModal}></lightning-button>
+                    <lightning-button
+                        variant="brand"
+                        label="Save"
+                        class="slds-m-left_x-small"
+                        disabled={newTopicSaveDisabled}
+                        onclick={handleNewTopicSubmit}
+                    ></lightning-button>
+                </footer>
+            </div>
+        </section>
+        <div class="slds-backdrop slds-backdrop_open"></div>
+    </template>
+</template>

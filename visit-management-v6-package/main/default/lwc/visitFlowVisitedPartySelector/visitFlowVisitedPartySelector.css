@@ -1,0 +1,11 @@
+.table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.empty-state {
+    border: 1px dashed var(--slds-g-color-border-base-1, #dddbda);
+    border-radius: 0.25rem;
+    padding: 0.75rem;
+    color: var(--slds-g-color-neutral-base-30, #444);
+}
