@@ -14,6 +14,14 @@ public inherited sharing class VisitWizardController {
     @TestVisible private static String visitorAssigneeFieldApiName = 'AssigneeId';
     @TestVisible private static String visitedPartyVisitFieldApiName = 'VisitId';
     @TestVisible private static String visitedPartyContactFieldApiName = 'ContactId';
+    @TestVisible private static SObject testActionPlanTemplateVersionForVisit;
+    @TestVisible private static Boolean testForceAddressSearchFallback = false;
+    @TestVisible private static Boolean testForceAccountAddressSearchFallback = false;
+    @TestVisible private static Boolean testForceAccountAddressSearchEmptyFallback = false;
+    @TestVisible private static Boolean testForceDefaultAccountAddressFallback = false;
+    @TestVisible private static Boolean testForceAddressInfoFallback = false;
+    @TestVisible private static Boolean testForceAccountInfoFallback = false;
+    @TestVisible private static Boolean testForceAccountTeamFallback = false;
 
     public class RecordTypeOption {
         @AuraEnabled public String label;
@@ -275,6 +283,9 @@ public inherited sharing class VisitWizardController {
 
         String term = searchTermLikeValue(searchTerm);
         try {
+            if (Test.isRunningTest() && testForceAddressSearchFallback) {
+                throw new QueryException('Forced Address fallback');
+            }
             return addressCandidates(Database.queryWithBinds(
                 'SELECT Id, Name, Street, City, State, PostalCode, Country ' +
                 'FROM Address WHERE Name LIKE :term OR Street LIKE :term OR City LIKE :term ' +
@@ -302,6 +313,9 @@ public inherited sharing class VisitWizardController {
         String accountAddressFilter =
             'ParentId IN (SELECT LocationId FROM AssociatedLocation WHERE ParentRecordId = :accountId)';
         try {
+            if (Test.isRunningTest() && testForceAccountAddressSearchFallback) {
+                throw new QueryException('Forced Account Address fallback');
+            }
             return addressCandidates(Database.queryWithBinds(
                 'SELECT Id, Name, Street, City, State, PostalCode, Country ' +
                 'FROM Address WHERE ' + accountAddressFilter +
@@ -313,6 +327,9 @@ public inherited sharing class VisitWizardController {
             ));
         } catch (QueryException e) {
             try {
+                if (Test.isRunningTest() && testForceAccountAddressSearchEmptyFallback) {
+                    throw new QueryException('Forced Account Address empty fallback');
+                }
                 return addressCandidates(Database.queryWithBinds(
                     'SELECT Id, Name FROM Address WHERE ' + accountAddressFilter +
                     ' AND Name LIKE :term ORDER BY LastModifiedDate DESC LIMIT 50',
@@ -360,6 +377,9 @@ public inherited sharing class VisitWizardController {
 
         List<SObject> addresses;
         try {
+            if (Test.isRunningTest() && testForceDefaultAccountAddressFallback) {
+                throw new QueryException('Forced default Address fallback');
+            }
             addresses = Database.queryWithBinds(
                 'SELECT Id, Name, ParentId, AddressType, Street, City, State, PostalCode, Country ' +
                 'FROM Address WHERE ParentId IN :allLocationIds ' +
@@ -391,6 +411,9 @@ public inherited sharing class VisitWizardController {
         }
 
         try {
+            if (Test.isRunningTest() && testForceAddressInfoFallback) {
+                throw new QueryException('Forced Address info fallback');
+            }
             List<AddressCandidate> candidates = addressCandidates(Database.queryWithBinds(
                 'SELECT Id, Name, Street, City, State, PostalCode, Country FROM Address WHERE Id = :addressId LIMIT 1',
                 new Map<String, Object>{ 'addressId' => addressId },
@@ -416,6 +439,9 @@ public inherited sharing class VisitWizardController {
             ' FROM Account WHERE Id = :accountId LIMIT 1';
         List<SObject> accounts;
         try {
+            if (Test.isRunningTest() && testForceAccountInfoFallback) {
+                throw new QueryException('Forced Account info fallback');
+            }
             accounts = Database.queryWithBinds(
                 queryText,
                 new Map<String, Object>{ 'accountId' => accountId },
@@ -477,6 +503,9 @@ public inherited sharing class VisitWizardController {
 
         if (getObjectType('AccountTeamMember') != null) {
             try {
+                if (Test.isRunningTest() && testForceAccountTeamFallback) {
+                    throw new QueryException('Forced Account Team fallback');
+                }
                 for (SObject teamMember : Database.query(
                     'SELECT UserId, TeamMemberRole, User.Name, User.Email, User.Title, User.Department, User.UserRole.Name ' +
                     'FROM AccountTeamMember WHERE AccountId = :accountId AND User.IsActive = true ' +
@@ -536,6 +565,7 @@ public inherited sharing class VisitWizardController {
             FROM RecordType
             WHERE SObjectType = 'Contact'
             AND IsActive = true
+            WITH USER_MODE
         ]) {
             descriptionsById.put(String.valueOf(recordType.Id), recordType.Description);
         }
@@ -691,7 +721,7 @@ public inherited sharing class VisitWizardController {
     @AuraEnabled(cacheable=true)
     public static String getActionPlanTemplateType(Id templateVersionId) {
         SObject templateVersion = actionPlanTemplateVersionForVisit(templateVersionId);
-        SObject template = templateVersion.getSObject('ActionPlanTemplate');
+        SObject template = actionPlanTemplateForVersion(templateVersion);
         return template == null ? null : (String) template.get('ActionPlanType');
     }
 
@@ -841,7 +871,7 @@ public inherited sharing class VisitWizardController {
         requireCreateableField(actionPlanFields, 'ActionPlanType', ACTION_PLAN_OBJECT);
 
         SObject templateVersion = actionPlanTemplateVersionForVisit(request.actionPlanTemplateVersionId);
-        SObject template = templateVersion.getSObject('ActionPlanTemplate');
+        SObject template = actionPlanTemplateForVersion(templateVersion);
         String actionPlanTypeValue = (String) template.get('ActionPlanType');
         if (!isActivePicklistValue(actionPlanFields.get('ActionPlanType'), actionPlanTypeValue)) {
             throw userError('The selected Meeting Template has an unsupported Meeting Template Type.');
@@ -1085,19 +1115,30 @@ public inherited sharing class VisitWizardController {
 
         List<ActionPlanTemplateOption> options = new List<ActionPlanTemplateOption>();
         try {
-            for (SObject templateVersion : Database.query(
-                'SELECT Id, Name, Status, Version, LastModifiedDate, ActionPlanTemplateId, ' +
-                'ActionPlanTemplate.Name, ActionPlanTemplate.ActionPlanType, ' +
-                'ActionPlanTemplate.Status, ActionPlanTemplate.TargetEntityType ' +
+            List<SObject> templateVersions = Database.query(
+                'SELECT Id, Name, Status, Version, LastModifiedDate, ActionPlanTemplateId ' +
                 'FROM ActionPlanTemplateVersion ' +
                 'WHERE Status = \'Final\' ' +
-                'AND ActionPlanTemplate.Status = \'Final\' ' +
-                'AND ActionPlanTemplate.TargetEntityType = \'Visit\' ' +
+                'AND ActionPlanTemplateId != null ' +
                 'WITH USER_MODE ' +
                 'ORDER BY LastModifiedDate DESC ' +
-                'LIMIT 3'
-            )) {
-                options.add(toActionPlanTemplateOption(templateVersion));
+                'LIMIT 25'
+            );
+            Set<Id> templateIds = new Set<Id>();
+            for (SObject templateVersion : templateVersions) {
+                templateIds.add((Id) templateVersion.get('ActionPlanTemplateId'));
+            }
+
+            Map<Id, SObject> templatesById = actionPlanTemplatesById(templateIds);
+            for (SObject templateVersion : templateVersions) {
+                SObject template = templatesById.get((Id) templateVersion.get('ActionPlanTemplateId'));
+                if (!isPublishedTemplateForSelection(template)) {
+                    continue;
+                }
+                options.add(toActionPlanTemplateOption(templateVersion, template));
+                if (options.size() == 3) {
+                    break;
+                }
             }
         } catch (QueryException ignored) {
             return new List<ActionPlanTemplateOption>();
@@ -1107,23 +1148,27 @@ public inherited sharing class VisitWizardController {
 
     @TestVisible
     private static SObject actionPlanTemplateVersionForVisit(Id templateVersionId) {
-        List<SObject> templateVersions = Database.query(
-            'SELECT Id, Name, Status, ActionPlanTemplateId, ' +
-            'ActionPlanTemplate.Name, ActionPlanTemplate.ActionPlanType, ' +
-            'ActionPlanTemplate.Status, ActionPlanTemplate.TargetEntityType ' +
-            'FROM ActionPlanTemplateVersion ' +
-            'WHERE Id = :templateVersionId ' +
-            'WITH USER_MODE ' +
-            'LIMIT 1'
-        );
+        List<SObject> templateVersions = Test.isRunningTest() && testActionPlanTemplateVersionForVisit != null
+            ? new List<SObject>{ testActionPlanTemplateVersionForVisit }
+            : Database.query(
+                'SELECT Id, Name, Status, ActionPlanTemplateId ' +
+                'FROM ActionPlanTemplateVersion ' +
+                'WHERE Id = :templateVersionId ' +
+                'WITH USER_MODE ' +
+                'LIMIT 1'
+            );
 
         if (templateVersions.isEmpty()) {
             throw userError('The selected Meeting Template could not be found.');
         }
 
         SObject templateVersion = templateVersions[0];
-        SObject template = templateVersion.getSObject('ActionPlanTemplate');
-        if (template == null || (String) template.get('TargetEntityType') != 'Visit') {
+        SObject template = actionPlanTemplateForVersion(templateVersion);
+        if (template == null) {
+            throw userError('The selected Meeting Template could not be found.');
+        }
+        Map<String, Object> populatedTemplateFields = template.getPopulatedFieldsAsMap();
+        if (populatedTemplateFields.containsKey('TargetEntityType') && (String) template.get('TargetEntityType') != 'Visit') {
             throw userError('Select a Meeting Template for Visit records.');
         }
         if ((String) templateVersion.get('Status') != 'Final' || (String) template.get('Status') != 'Final') {
@@ -1138,7 +1183,11 @@ public inherited sharing class VisitWizardController {
 
     @TestVisible
     private static ActionPlanTemplateOption toActionPlanTemplateOption(SObject templateVersion) {
-        SObject template = templateVersion.getSObject('ActionPlanTemplate');
+        return toActionPlanTemplateOption(templateVersion, templateVersion.getSObject('ActionPlanTemplate'));
+    }
+
+    @TestVisible
+    private static ActionPlanTemplateOption toActionPlanTemplateOption(SObject templateVersion, SObject template) {
         ActionPlanTemplateOption option = new ActionPlanTemplateOption();
         option.templateVersionId = (Id) templateVersion.get('Id');
         option.templateId = (Id) templateVersion.get('ActionPlanTemplateId');
@@ -1149,6 +1198,46 @@ public inherited sharing class VisitWizardController {
         option.versionNumber = (Integer) templateVersion.get('Version');
         option.lastModifiedDate = (Datetime) templateVersion.get('LastModifiedDate');
         return option;
+    }
+
+    @TestVisible
+    private static SObject actionPlanTemplateForVersion(SObject templateVersion) {
+        if (templateVersion == null) {
+            return null;
+        }
+        SObject relationshipTemplate = templateVersion.getSObject('ActionPlanTemplate');
+        if (relationshipTemplate != null) {
+            return relationshipTemplate;
+        }
+        Id templateId = (Id) templateVersion.get('ActionPlanTemplateId');
+        if (templateId == null) {
+            return null;
+        }
+        return actionPlanTemplatesById(new Set<Id>{ templateId }).get(templateId);
+    }
+
+    @TestVisible
+    private static Map<Id, SObject> actionPlanTemplatesById(Set<Id> templateIds) {
+        Map<Id, SObject> templatesById = new Map<Id, SObject>();
+        if (templateIds == null || templateIds.isEmpty()) {
+            return templatesById;
+        }
+        for (SObject template : Database.query(
+            'SELECT Id, Name, Status, ActionPlanType ' +
+            'FROM ActionPlanTemplate ' +
+            'WHERE Id IN :templateIds ' +
+            'WITH USER_MODE'
+        )) {
+            templatesById.put((Id) template.get('Id'), template);
+        }
+        return templatesById;
+    }
+
+    @TestVisible
+    private static Boolean isPublishedTemplateForSelection(SObject template) {
+        return template != null &&
+            (String) template.get('Status') == 'Final' &&
+            !String.isBlank((String) template.get('ActionPlanType'));
     }
 
     @TestVisible

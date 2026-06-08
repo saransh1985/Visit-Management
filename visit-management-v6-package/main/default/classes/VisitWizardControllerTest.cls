@@ -1085,6 +1085,90 @@ private class VisitWizardControllerTest {
         } catch (AuraHandledException e) {
             System.assert(e.getMessage().contains('Meeting Template could not be found'));
         }
+
+        VisitWizardController.testActionPlanTemplateVersionForVisit =
+            templateVersionStub(templateVersionId, 'Account', 'Final', 'Final', firstActionPlanType());
+        try {
+            VisitWizardController.actionPlanTemplateVersionForVisit(templateVersionId);
+            System.assert(false, 'Expected Visit target validation.');
+        } catch (AuraHandledException e) {
+            System.assert(e.getMessage().contains('Visit records'));
+        }
+
+        VisitWizardController.testActionPlanTemplateVersionForVisit =
+            templateVersionStub(templateVersionId, 'Visit', 'Draft', 'Final', firstActionPlanType());
+        try {
+            VisitWizardController.actionPlanTemplateVersionForVisit(templateVersionId);
+            System.assert(false, 'Expected published template validation.');
+        } catch (AuraHandledException e) {
+            System.assert(e.getMessage().contains('published'));
+        }
+
+        VisitWizardController.testActionPlanTemplateVersionForVisit =
+            templateVersionStub(templateVersionId, 'Visit', 'Final', 'Final', null);
+        try {
+            VisitWizardController.actionPlanTemplateVersionForVisit(templateVersionId);
+            System.assert(false, 'Expected template type validation.');
+        } catch (AuraHandledException e) {
+            System.assert(e.getMessage().contains('Meeting Template Type'));
+        }
+        VisitWizardController.testActionPlanTemplateVersionForVisit = null;
+    }
+
+    @IsTest
+    static void saveActionPlanCreatesPublishedVisitTemplateActionPlan() {
+        if (!hasObjects(new Set<String>{ 'Visit', 'Visitor', 'VisitedParty', 'Location', 'ActionPlan', 'ActionPlanTemplate', 'ActionPlanTemplateVersion' })) {
+            return;
+        }
+
+        Account accountRecord = new Account(Name = 'Visit Wizard Action Plan Account');
+        insert accountRecord;
+        Contact contactRecord = new Contact(AccountId = accountRecord.Id, LastName = 'Action Plan Contact');
+        insert contactRecord;
+
+        Id recordTypeId = defaultVisitRecordTypeId();
+        Id locationId = createLocation();
+        Id templateVersionId = createActionPlanTemplateVersion();
+        if (recordTypeId == null || locationId == null || templateVersionId == null) {
+            return;
+        }
+        VisitWizardController.testActionPlanTemplateVersionForVisit =
+            publishedTemplateVersionStub(templateVersionId);
+
+        VisitWizardController.SaveRequest visitRequest = new VisitWizardController.SaveRequest();
+        visitRequest.accountId = accountRecord.Id;
+        visitRequest.recordTypeId = recordTypeId;
+        visitRequest.visitorUserIds = new List<Id>{ UserInfo.getUserId() };
+        visitRequest.visitedContactIds = new List<Id>{ contactRecord.Id };
+        visitRequest.action = 'Save';
+        visitRequest.visitFields = new Map<String, Object>{
+            'AccountId' => accountRecord.Id,
+            'PlaceId' => locationId,
+            'PlannedVisitStartTime' => System.now().addDays(3).formatGmt('yyyy-MM-dd\'T\'HH:mm:ss.SSS\'Z\''),
+            'PlannedVisitEndTime' => System.now().addDays(3).addHours(1).formatGmt('yyyy-MM-dd\'T\'HH:mm:ss.SSS\'Z\''),
+            'VisitPriority' => 'Medium'
+        };
+        VisitWizardController.SaveResponse visitResponse = VisitWizardController.saveVisit(visitRequest);
+
+        VisitWizardController.ActionPlanSaveRequest actionPlanRequest =
+            new VisitWizardController.ActionPlanSaveRequest();
+        actionPlanRequest.visitId = visitResponse.visitId;
+        actionPlanRequest.targetRecordId = visitResponse.visitId;
+        actionPlanRequest.name = 'Published Visit Meeting Template';
+        actionPlanRequest.startDate = Date.today();
+        actionPlanRequest.actionPlanTemplateVersionId = templateVersionId;
+        actionPlanRequest.status = 'In Progress';
+
+        Test.startTest();
+        String templateType = VisitWizardController.getActionPlanTemplateType(templateVersionId);
+        VisitWizardController.ActionPlanSaveResponse response =
+            VisitWizardController.saveActionPlanRequest(actionPlanRequest);
+        Test.stopTest();
+
+        System.assertEquals('Meeting Template created.', response.message);
+        System.assertNotEquals(null, response.actionPlanId);
+        System.assertEquals(firstActionPlanType(), templateType);
+        VisitWizardController.testActionPlanTemplateVersionForVisit = null;
     }
 
     @IsTest
@@ -1120,6 +1204,162 @@ private class VisitWizardControllerTest {
             }
         } finally {
             VisitWizardController.visitObjectApiName = originalVisitObjectApiName;
+        }
+    }
+
+    @IsTest
+    static void accountAddressAndRecordTypeHelpersCoverEdgeBranches() {
+        Account accountRecord = new Account(Name = 'Visit Wizard Address Helper');
+        insert accountRecord;
+
+        Test.startTest();
+        try {
+            VisitWizardController.getAccountInfo(null);
+            System.assert(false, 'Expected Account validation.');
+        } catch (AuraHandledException e) {
+            System.assert(e.getMessage().contains('Account Id is required.'));
+        }
+
+        System.assertNotEquals(null, VisitWizardController.searchAccountAddresses(null, 'anything'));
+        System.assertEquals(null, VisitWizardController.getDefaultAccountAddress(null));
+        System.assertEquals(null, VisitWizardController.getAddressInfo(null));
+        System.assertEquals(0, VisitWizardController.searchUsers('ab', null).size());
+        System.assertNotEquals(null, VisitWizardController.getContactRecordTypeDescriptions());
+        Test.stopTest();
+
+        System.assertEquals(null, VisitWizardController.defaultVisitFieldValue(null));
+        System.assertEquals('%', VisitWizardController.searchTermLikeValue(null));
+        System.assertEquals('%Fleet%', VisitWizardController.searchTermLikeValue(' Fleet '));
+
+        List<VisitWizardController.AddressCandidate> accountCandidates =
+            VisitWizardController.addressCandidates(new List<SObject>{ accountRecord });
+        System.assertEquals(1, accountCandidates.size());
+        System.assertEquals(accountRecord.Id, accountCandidates[0].addressId);
+        System.assertEquals(accountRecord.Name, accountCandidates[0].displayAddress);
+
+        if (hasObjects(new Set<String>{ 'Address', 'Location' })) {
+            String addressPrefix = Schema.getGlobalDescribe().get('Address').getDescribe(SObjectDescribeOptions.DEFERRED).getKeyPrefix();
+            String locationPrefix = Schema.getGlobalDescribe().get('Location').getDescribe(SObjectDescribeOptions.DEFERRED).getKeyPrefix();
+            if (String.isNotBlank(addressPrefix) && String.isNotBlank(locationPrefix)) {
+                Id preferredLocationId = (Id) (locationPrefix + '000000000001');
+                Id otherLocationId = (Id) (locationPrefix + '000000000002');
+                SObject preferredShipping = fakeAddress(
+                    addressPrefix + '000000000001',
+                    preferredLocationId,
+                    'Shipping',
+                    'Preferred Shipping',
+                    '1 Fleet Street'
+                );
+                SObject preferredPostal = fakeAddress(
+                    addressPrefix + '000000000002',
+                    preferredLocationId,
+                    'Postal',
+                    'Preferred Postal',
+                    '2 Fleet Street'
+                );
+                SObject otherShipping = fakeAddress(
+                    addressPrefix + '000000000003',
+                    otherLocationId,
+                    'Shipping',
+                    'Other Shipping',
+                    '3 Fleet Street'
+                );
+
+                List<VisitWizardController.AddressCandidate> addressCandidates =
+                    VisitWizardController.addressCandidates(new List<SObject>{ preferredShipping });
+                System.assertEquals('1 Fleet Street, Test City', addressCandidates[0].displayAddress);
+                System.assertEquals(
+                    preferredShipping,
+                    VisitWizardController.firstPreferredAddress(
+                        new List<SObject>{ preferredPostal, otherShipping, preferredShipping },
+                        new Set<Id>{ preferredLocationId }
+                    )
+                );
+                System.assertEquals(
+                    preferredPostal,
+                    VisitWizardController.firstPreferredAddress(
+                        new List<SObject>{ preferredPostal, otherShipping },
+                        new Set<Id>{ preferredLocationId }
+                    )
+                );
+                System.assertEquals(
+                    otherShipping,
+                    VisitWizardController.firstPreferredAddress(
+                        new List<SObject>{ accountRecord, otherShipping },
+                        new Set<Id>{ preferredLocationId }
+                    )
+                );
+                System.assertEquals(null, VisitWizardController.firstPreferredAddress(new List<SObject>(), null));
+            }
+        }
+
+        if (Schema.getGlobalDescribe().containsKey('Visit')) {
+            VisitWizardController.ActionPlanSaveRequest missingVisit = new VisitWizardController.ActionPlanSaveRequest();
+            missingVisit.visitId = fakeId('Visit');
+            missingVisit.name = 'Missing Visit';
+            missingVisit.startDate = Date.today();
+            missingVisit.actionPlanTemplateVersionId = fakeId('ActionPlanTemplateVersion');
+            try {
+                VisitWizardController.validateActionPlanRequest(missingVisit);
+                System.assert(false, 'Expected missing Visit validation.');
+            } catch (AuraHandledException e) {
+                System.assert(e.getMessage().contains('Target Record'));
+            }
+        }
+    }
+
+    @IsTest
+    static void forcedQueryFallbackBranchesRemainReadable() {
+        Account accountRecord = new Account(Name = 'Visit Wizard Forced Fallback');
+        insert accountRecord;
+        Id addressId = createAccountAddress(accountRecord.Id);
+
+        Boolean canForceAccountInfoFallback =
+            Account.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).fields.getMap()
+                .containsKey('Customer_Account_Number__c');
+
+        try {
+            Test.startTest();
+            VisitWizardController.testForceAddressSearchFallback = true;
+            System.assertNotEquals(null, VisitWizardController.searchAddresses('Visit Wizard'));
+
+            VisitWizardController.testForceAccountAddressSearchFallback = true;
+            System.assertNotEquals(null, VisitWizardController.searchAccountAddresses(accountRecord.Id, 'Visit Wizard'));
+
+            VisitWizardController.testForceAccountAddressSearchEmptyFallback = true;
+            System.assertEquals(0, VisitWizardController.searchAccountAddresses(accountRecord.Id, 'Visit Wizard').size());
+
+            VisitWizardController.testForceDefaultAccountAddressFallback = true;
+            System.assertNotEquals(null, VisitWizardController.getDefaultAccountAddress(accountRecord.Id));
+
+            if (addressId != null) {
+                VisitWizardController.testForceAddressInfoFallback = true;
+                System.assertNotEquals(null, VisitWizardController.getAddressInfo(addressId));
+            }
+
+            if (canForceAccountInfoFallback) {
+                VisitWizardController.testForceAccountInfoFallback = true;
+                System.assertEquals(accountRecord.Id, VisitWizardController.getAccountInfo(accountRecord.Id).accountId);
+            }
+
+            VisitWizardController.testForceAccountTeamFallback = true;
+            System.assertNotEquals(null, VisitWizardController.getInitialVisitorCandidates(accountRecord.Id));
+
+            try {
+                VisitWizardController.getAccountInfo(fakeId('Account'));
+                System.assert(false, 'Expected missing Account validation.');
+            } catch (AuraHandledException e) {
+                System.assert(e.getMessage().contains('selected Account'));
+            }
+            Test.stopTest();
+        } finally {
+            VisitWizardController.testForceAddressSearchFallback = false;
+            VisitWizardController.testForceAccountAddressSearchFallback = false;
+            VisitWizardController.testForceAccountAddressSearchEmptyFallback = false;
+            VisitWizardController.testForceDefaultAccountAddressFallback = false;
+            VisitWizardController.testForceAddressInfoFallback = false;
+            VisitWizardController.testForceAccountInfoFallback = false;
+            VisitWizardController.testForceAccountTeamFallback = false;
         }
     }
 
@@ -1178,6 +1418,9 @@ private class VisitWizardControllerTest {
             if (addressFields.containsKey('AddressType') && addressFields.get('AddressType').getDescribe().isCreateable()) {
                 addressRecord.put('AddressType', firstPicklistValue(addressFields.get('AddressType')));
             }
+            if (addressFields.containsKey('LocationType') && addressFields.get('LocationType').getDescribe().isCreateable()) {
+                addressRecord.put('LocationType', firstPicklistValue(addressFields.get('LocationType')));
+            }
             if (addressFields.containsKey('Street') && addressFields.get('Street').getDescribe().isCreateable()) {
                 addressRecord.put('Street', 'Visit Wizard Test Street');
             }
@@ -1206,6 +1449,76 @@ private class VisitWizardControllerTest {
         }
     }
 
+    private static Id createActionPlanTemplateVersion() {
+        if (!hasObjects(new Set<String>{ 'ActionPlanTemplate', 'ActionPlanTemplateVersion', 'ActionPlan' })) {
+            return null;
+        }
+
+        Schema.SObjectType templateType = Schema.getGlobalDescribe().get('ActionPlanTemplate');
+        Schema.SObjectType versionType = Schema.getGlobalDescribe().get('ActionPlanTemplateVersion');
+        if (!templateType.getDescribe(SObjectDescribeOptions.DEFERRED).isCreateable() ||
+            !versionType.getDescribe(SObjectDescribeOptions.DEFERRED).isCreateable()) {
+            return null;
+        }
+
+        try {
+            Map<String, Schema.SObjectField> templateFields =
+                templateType.getDescribe(SObjectDescribeOptions.DEFERRED).fields.getMap();
+            SObject templateRecord = templateType.newSObject();
+            String uniqueName = 'Base_Template_' + String.valueOf(Crypto.getRandomInteger()).replace('-', '');
+            putIfCreateable(templateRecord, templateFields, 'Name', 'Published Visit Template');
+            putIfCreateable(templateRecord, templateFields, 'UniqueName', uniqueName);
+            putIfCreateable(templateRecord, templateFields, 'ActionPlanType', firstActionPlanType());
+            putIfCreateable(templateRecord, templateFields, 'TargetEntityType', 'Visit');
+            putIfCreateable(templateRecord, templateFields, 'Status', 'Final');
+            insert templateRecord;
+
+            Map<String, Schema.SObjectField> versionFields =
+                versionType.getDescribe(SObjectDescribeOptions.DEFERRED).fields.getMap();
+            SObject versionRecord = versionType.newSObject();
+            putIfCreateable(versionRecord, versionFields, 'Name', 'Published Visit Template Version');
+            putIfCreateable(versionRecord, versionFields, 'ActionPlanTemplateId', templateRecord.Id);
+            putIfCreateable(versionRecord, versionFields, 'Status', 'Final');
+            putIfCreateable(versionRecord, versionFields, 'Version', 1);
+            putIfCreateable(versionRecord, versionFields, 'VersionNumber', 1);
+            insert versionRecord;
+            return versionRecord.Id;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static SObject publishedTemplateVersionStub(Id templateVersionId) {
+        return templateVersionStub(templateVersionId, 'Visit', 'Final', 'Final', firstActionPlanType());
+    }
+
+    private static SObject templateVersionStub(
+        Id templateVersionId,
+        String targetEntityType,
+        String versionStatus,
+        String templateStatus,
+        String actionPlanType
+    ) {
+        return (SObject) JSON.deserialize(
+            '{"attributes":{"type":"ActionPlanTemplateVersion"},' +
+            '"Id":"' + String.valueOf(templateVersionId) + '",' +
+            '"Name":"Published Visit Template Version",' +
+            '"ActionPlanTemplateId":"0PR000000000001",' +
+            '"Status":"' + String.valueOf(versionStatus) + '",' +
+            '"Version":1,' +
+            '"LastModifiedDate":"2026-01-01T00:00:00.000Z",' +
+            '"ActionPlanTemplate":{' +
+                '"attributes":{"type":"ActionPlanTemplate"},' +
+                '"Id":"0PR000000000001",' +
+                '"Name":"Published Visit Template",' +
+                '"ActionPlanType":"' + (actionPlanType == null ? '' : actionPlanType) + '",' +
+                '"Status":"' + String.valueOf(templateStatus) + '",' +
+                '"TargetEntityType":"' + String.valueOf(targetEntityType) + '"' +
+            '}}',
+            SObject.class
+        );
+    }
+
     private static Id defaultVisitRecordTypeId() {
         List<VisitWizardController.RecordTypeOption> recordTypes;
         try {
@@ -1221,13 +1534,59 @@ private class VisitWizardControllerTest {
         return recordTypes.isEmpty() ? null : (Id) recordTypes[0].value;
     }
 
+    private static void putIfCreateable(SObject record, Map<String, Schema.SObjectField> fields, String fieldName, Object value) {
+        if (fields.containsKey(fieldName) && fields.get(fieldName).getDescribe().isCreateable()) {
+            record.put(fieldName, value);
+        }
+    }
+
     private static String firstPicklistValue(Schema.SObjectField fieldToken) {
+        if (fieldToken == null) {
+            return null;
+        }
         for (Schema.PicklistEntry entry : fieldToken.getDescribe().getPicklistValues()) {
             if (entry.isActive()) {
                 return entry.getValue();
             }
         }
         return null;
+    }
+
+    private static String firstActionPlanType() {
+        Schema.SObjectType actionPlanType = Schema.getGlobalDescribe().get('ActionPlan');
+        if (actionPlanType == null) {
+            return null;
+        }
+        Map<String, Schema.SObjectField> fields =
+            actionPlanType.getDescribe(SObjectDescribeOptions.DEFERRED).fields.getMap();
+        if (fields.containsKey('ActionPlanType')) {
+            for (Schema.PicklistEntry entry : fields.get('ActionPlanType').getDescribe().getPicklistValues()) {
+                if (entry.isActive() && entry.getValue() == 'Retail') {
+                    return entry.getValue();
+                }
+            }
+        }
+        return firstPicklistValue(fields.get('ActionPlanType'));
+    }
+
+    private static SObject fakeAddress(String idValue, Id parentId, String addressTypeValue, String name, String street) {
+        String payload =
+            '{"attributes":{"type":"Address"},' +
+            '"Id":"' + idValue + '",' +
+            '"Name":"' + name + '",' +
+            '"ParentId":"' + String.valueOf(parentId) + '",' +
+            '"AddressType":"' + addressTypeValue + '",' +
+            '"Street":"' + street + '",' +
+            '"City":"Test City"}';
+        return (SObject) JSON.deserialize(payload, SObject.class);
+    }
+
+    private static Id fakeId(String objectApiName) {
+        Schema.SObjectType objectType = Schema.getGlobalDescribe().get(objectApiName);
+        String keyPrefix = objectType == null
+            ? Account.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).getKeyPrefix()
+            : objectType.getDescribe(SObjectDescribeOptions.DEFERRED).getKeyPrefix();
+        return (Id) (keyPrefix + '000000000001');
     }
 
     private static void assertNoDuplicateVisitFields(List<VisitWizardController.FieldMetadata> fields) {
