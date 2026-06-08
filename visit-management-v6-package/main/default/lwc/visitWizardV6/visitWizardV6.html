@@ -217,18 +217,40 @@
 
                         <section class="action-plan-template-section slds-m-top_large">
                             <h3 class="slds-text-title_bold slds-m-bottom_small">Meeting Template</h3>
-                            <lightning-record-picker
-                                data-action-plan-field
-                                data-action-plan-template-picker
+                            <lightning-input
+                                data-action-plan-template-search
+                                type="search"
                                 label="Meeting Template"
-                                object-api-name="ActionPlanTemplateVersion"
-                                value={actionPlanTemplateVersionId}
-                                filter={actionPlanTemplatePickerFilter}
-                                display-info={actionPlanTemplateDisplayInfo}
-                                matching-info={actionPlanTemplateMatchingInfo}
+                                value={actionPlanTemplateSearchTerm}
+                                field-level-help={actionPlanTemplateSearchHelpText}
                                 required
-                                onchange={handleActionPlanTemplateLookupChange}
-                            ></lightning-record-picker>
+                                onchange={handleActionPlanTemplateSearchInput}
+                                onkeyup={handleActionPlanTemplateSearchInput}
+                            ></lightning-input>
+
+                            <template if:true={actionPlanTemplateSearching}>
+                                <div class="inline-loading slds-m-top_small" aria-live="polite">
+                                    <lightning-spinner alternative-text="Searching Meeting Templates" size="small"></lightning-spinner>
+                                    <span>Searching Meeting Templates</span>
+                                </div>
+                            </template>
+
+                            <template if:true={hasActionPlanTemplateSearchResults}>
+                                <div class="slds-m-top_medium">
+                                    <h4 class="slds-text-title slds-m-bottom_x-small">Search Results</h4>
+                                    <lightning-datatable
+                                        key-field="templateVersionId"
+                                        data={actionPlanTemplateSearchResults}
+                                        columns={recentActionPlanTemplateColumns}
+                                        hide-checkbox-column
+                                        onrowaction={handleActionPlanTemplateSearchRowAction}
+                                    ></lightning-datatable>
+                                </div>
+                            </template>
+
+                            <template if:true={showActionPlanTemplateNoResults}>
+                                <div class="empty-state slds-m-top_small">No published Visit Meeting Templates found.</div>
+                            </template>
 
                             <template if:true={hasRecentActionPlanTemplates}>
                                 <div class="slds-m-top_medium">

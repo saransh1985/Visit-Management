@@ -731,6 +731,11 @@ public inherited sharing class VisitWizardController {
         return toActionPlanTemplateOption(templateVersion, actionPlanTemplateForVersion(templateVersion));
     }
 
+    @AuraEnabled(cacheable=true)
+    public static List<ActionPlanTemplateOption> searchActionPlanTemplates(String searchTerm) {
+        return searchActionPlanTemplateOptions(searchTerm);
+    }
+
     @TestVisible
     private static SaveRequest saveRequestFromJson(Object rawPayload) {
         if (!(rawPayload instanceof Map<String, Object>)) {
@@ -1150,6 +1155,77 @@ public inherited sharing class VisitWizardController {
             return new List<ActionPlanTemplateOption>();
         }
         return options;
+    }
+
+    @TestVisible
+    private static List<ActionPlanTemplateOption> searchActionPlanTemplateOptions(String searchTerm) {
+        if (
+            getObjectType(ACTION_PLAN_TEMPLATE_VERSION_OBJECT) == null ||
+            getObjectType('ActionPlanTemplate') == null ||
+            String.isBlank(searchTerm)
+        ) {
+            return new List<ActionPlanTemplateOption>();
+        }
+
+        String term = searchTermLikeValue(searchTerm);
+        Set<Id> matchingTemplateIds = new Set<Id>();
+        try {
+            for (SObject template : Database.queryWithBinds(
+                'SELECT Id ' +
+                'FROM ActionPlanTemplate ' +
+                'WHERE Name LIKE :term ' +
+                'ORDER BY LastModifiedDate DESC ' +
+                'LIMIT 50',
+                new Map<String, Object>{ 'term' => term },
+                AccessLevel.USER_MODE
+            )) {
+                matchingTemplateIds.add((Id) template.get('Id'));
+            }
+
+            String versionQuery =
+                'SELECT Id, Name, Status, Version, LastModifiedDate, ActionPlanTemplateId ' +
+                'FROM ActionPlanTemplateVersion ' +
+                'WHERE Status = \'Final\' ' +
+                'AND ActionPlanTemplateId != null ' +
+                'AND (Name LIKE :term';
+            if (!matchingTemplateIds.isEmpty()) {
+                versionQuery += ' OR ActionPlanTemplateId IN :matchingTemplateIds';
+            }
+            versionQuery += ') ORDER BY LastModifiedDate DESC LIMIT 50';
+
+            List<SObject> templateVersions = Database.queryWithBinds(
+                versionQuery,
+                new Map<String, Object>{
+                    'term' => term,
+                    'matchingTemplateIds' => matchingTemplateIds
+                },
+                AccessLevel.USER_MODE
+            );
+
+            Set<Id> templateIds = new Set<Id>();
+            for (SObject templateVersion : templateVersions) {
+                templateIds.add((Id) templateVersion.get('ActionPlanTemplateId'));
+            }
+
+            Map<Id, SObject> templatesById = actionPlanTemplatesById(templateIds);
+            List<ActionPlanTemplateOption> options = new List<ActionPlanTemplateOption>();
+            Set<Id> emittedTemplateIds = new Set<Id>();
+            for (SObject templateVersion : templateVersions) {
+                Id templateId = (Id) templateVersion.get('ActionPlanTemplateId');
+                SObject template = templatesById.get(templateId);
+                if (!isPublishedTemplateForSelection(template) || emittedTemplateIds.contains(templateId)) {
+                    continue;
+                }
+                options.add(toActionPlanTemplateOption(templateVersion, template));
+                emittedTemplateIds.add(templateId);
+                if (options.size() == 25) {
+                    break;
+                }
+            }
+            return options;
+        } catch (QueryException ignored) {
+            return new List<ActionPlanTemplateOption>();
+        }
     }
 
     @TestVisible

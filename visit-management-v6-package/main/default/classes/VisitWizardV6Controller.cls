@@ -172,6 +172,11 @@ public inherited sharing class VisitWizardV6Controller {
         return VisitWizardController.getActionPlanTemplateOption(templateVersionId);
     }
 
+    @AuraEnabled(cacheable=true)
+    public static List<VisitWizardController.ActionPlanTemplateOption> searchActionPlanTemplates(String searchTerm) {
+        return VisitWizardController.searchActionPlanTemplates(searchTerm);
+    }
+
     @AuraEnabled
     public static LaunchContext getLaunchContext(String recordIdText) {
         Id recordId = toId(recordIdText);

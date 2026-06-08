@@ -18,6 +18,7 @@ import saveForLater from '@salesforce/apex/VisitWizardV6Controller.saveForLater'
 import saveVisitProgress from '@salesforce/apex/VisitWizardV6Controller.saveVisitProgress';
 import getActionPlanStartInfo from '@salesforce/apex/VisitWizardV6Controller.getActionPlanStartInfo';
 import getActionPlanTemplateOption from '@salesforce/apex/VisitWizardV6Controller.getActionPlanTemplateOption';
+import searchActionPlanTemplates from '@salesforce/apex/VisitWizardV6Controller.searchActionPlanTemplates';
 import saveActionPlanAndLoadTasks from '@salesforce/apex/VisitWizardV6Controller.saveActionPlanAndLoadTasks';
 import getTaskList from '@salesforce/apex/VisitWizardV6Controller.getTaskList';
 import startTask from '@salesforce/apex/VisitWizardV6Controller.startTask';
@@ -81,6 +82,7 @@ jest.mock('@salesforce/apex/VisitWizardV6Controller.saveForLater', () => ({ defa
 jest.mock('@salesforce/apex/VisitWizardV6Controller.saveVisitProgress', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/VisitWizardV6Controller.getActionPlanStartInfo', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/VisitWizardV6Controller.getActionPlanTemplateOption', () => ({ default: jest.fn() }), { virtual: true });
+jest.mock('@salesforce/apex/VisitWizardV6Controller.searchActionPlanTemplates', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/VisitWizardV6Controller.saveActionPlanAndLoadTasks', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/VisitWizardV6Controller.getTaskList', () => ({ default: jest.fn() }), { virtual: true });
 jest.mock('@salesforce/apex/VisitWizardV6Controller.startTask', () => ({ default: jest.fn() }), { virtual: true });
@@ -168,6 +170,7 @@ function defaultMocks(contextOverrides = {}) {
     saveVisitProgress.mockResolvedValue({ visitId: '0Z5000000000001AAA', resumePage: 'Visitors' });
     getActionPlanStartInfo.mockResolvedValue({ statusOptions: [], recentTemplates: [], defaultStatus: 'In Progress' });
     getActionPlanTemplateOption.mockResolvedValue({ templateVersionId: TEMPLATE_VERSION_ID, name: 'Resolved Template' });
+    searchActionPlanTemplates.mockResolvedValue([]);
     saveActionPlanAndLoadTasks.mockResolvedValue({ tasks: [], requiredTasksComplete: true });
     getTaskList.mockResolvedValue({ tasks: [], requiredTasksComplete: true });
     startTask.mockResolvedValue({ tasks: [], requiredTasksComplete: true });
@@ -438,6 +441,73 @@ describe('c-visit-wizard-v6', () => {
 
         const payload = JSON.parse(saveActionPlanAndLoadTasks.mock.calls.at(-1)[0].requestJson);
         expect(payload.name).toBe(expectedName);
+        expect(payload.actionPlanTemplateVersionId).toBe(TEMPLATE_VERSION_ID);
+    });
+
+    it('searches and selects a published Meeting Template manually', async () => {
+        jest.useFakeTimers();
+        const templateName = 'DTNA Sales Meeting Template';
+        const element = createComponent({
+            recordTypeId: RECORD_TYPE_ID,
+            resumePage: 'ActionPlan',
+            visitId: '0Z5000000000001AAA',
+            visitName: '00000312',
+            visitValues: {
+                AccountId: ACCOUNT_ID,
+                PlaceId: PLACE_ID,
+                VisitPriority: 'Medium'
+            }
+        });
+        getActionPlanStartInfo.mockResolvedValue({
+            statusOptions: [{ label: 'In Progress', value: 'In Progress' }],
+            defaultStatus: 'In Progress',
+            recentTemplates: []
+        });
+        searchActionPlanTemplates.mockResolvedValue([
+            {
+                templateVersionId: TEMPLATE_VERSION_ID,
+                name: templateName,
+                templateName,
+                actionPlanType: 'Retail',
+                versionNumber: 1
+            }
+        ]);
+        await flushPromises();
+
+        const templateSearch = element.shadowRoot.querySelector('[data-action-plan-template-search]');
+        templateSearch.value = 'Sales';
+        templateSearch.dispatchEvent(new CustomEvent('change'));
+        jest.runOnlyPendingTimers();
+        await flushPromises();
+
+        expect(searchActionPlanTemplates).toHaveBeenCalledWith({ searchTerm: 'Sales' });
+        element.shadowRoot.querySelector('lightning-datatable').dispatchEvent(new CustomEvent('rowaction', {
+            detail: {
+                action: { name: 'select_template' },
+                row: {
+                    templateVersionId: TEMPLATE_VERSION_ID,
+                    name: templateName,
+                    templateName
+                }
+            }
+        }));
+        await flushPromises();
+
+        expect(templateSearch.value).toBe(templateName);
+        const nameInput = Array.from(element.shadowRoot.querySelectorAll('lightning-input')).find(
+            (input) => input.label === 'Name'
+        );
+        expect(nameInput.value).toBe(`Template - ${templateName}`);
+
+        Array.from(element.shadowRoot.querySelectorAll('[data-action-plan-field]')).forEach((field) => {
+            field.reportValidity = jest.fn(() => true);
+        });
+        templateSearch.reportValidity = jest.fn(() => true);
+        buttonByLabel(element, 'Next').click();
+        await flushPromises();
+
+        const payload = JSON.parse(saveActionPlanAndLoadTasks.mock.calls.at(-1)[0].requestJson);
+        expect(payload.name).toBe(`Template - ${templateName}`);
         expect(payload.actionPlanTemplateVersionId).toBe(TEMPLATE_VERSION_ID);
     });
 

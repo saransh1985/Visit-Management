@@ -30,6 +30,7 @@ import saveForLater from '@salesforce/apex/VisitWizardV6Controller.saveForLater'
 import saveVisitProgress from '@salesforce/apex/VisitWizardV6Controller.saveVisitProgress';
 import getActionPlanStartInfo from '@salesforce/apex/VisitWizardV6Controller.getActionPlanStartInfo';
 import getActionPlanTemplateOption from '@salesforce/apex/VisitWizardV6Controller.getActionPlanTemplateOption';
+import searchActionPlanTemplates from '@salesforce/apex/VisitWizardV6Controller.searchActionPlanTemplates';
 import saveActionPlanAndLoadTasks from '@salesforce/apex/VisitWizardV6Controller.saveActionPlanAndLoadTasks';
 import getTaskList from '@salesforce/apex/VisitWizardV6Controller.getTaskList';
 import startTask from '@salesforce/apex/VisitWizardV6Controller.startTask';
@@ -74,6 +75,7 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
     @track userSearchResults = [];
     @track contactSearchResults = [];
     @track recentActionPlanTemplates = [];
+    @track actionPlanTemplateSearchResults = [];
     @track actionPlanStatusOptions = [];
     @track tasks = [];
     @track taskNotes = [];
@@ -93,6 +95,10 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
     actionPlanName = '';
     actionPlanStartDate;
     actionPlanTemplateVersionId;
+    actionPlanTemplateName = '';
+    actionPlanTemplateSearchTerm = '';
+    actionPlanTemplateSearchStarted = false;
+    actionPlanTemplateSearching = false;
     actionPlanStatus;
     actionPlanTargetRecordId;
     createActionPlan = true;
@@ -131,27 +137,12 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
     hostActionClosing = false;
     userSearchStarted = false;
     userSearchTimer;
+    actionPlanTemplateSearchTimer;
     newTopicSaveMode = 'close';
     visitDetailLoadingStartedAt = 0;
     visitDetailLoadingTimer;
     _recordId;
 
-    actionPlanTemplatePickerFilter = {
-        criteria: [
-            { fieldPath: 'Status', operator: 'eq', value: 'Final' },
-            { fieldPath: 'ActionPlanTemplate.Status', operator: 'eq', value: 'Final' },
-            { fieldPath: 'ActionPlanTemplate.TargetEntityType', operator: 'eq', value: 'Visit' }
-        ],
-        filterLogic: '1 AND 2 AND 3'
-    };
-    actionPlanTemplateDisplayInfo = {
-        primaryField: 'Name',
-        additionalFields: ['ActionPlanTemplate.Name']
-    };
-    actionPlanTemplateMatchingInfo = {
-        primaryField: { fieldPath: 'Name' },
-        additionalFields: [{ fieldPath: 'ActionPlanTemplate.Name' }]
-    };
     accountNameFields = [ACCOUNT_NAME_FIELD];
     accountCanFields = [ACCOUNT_CUSTOMER_NUMBER_FIELD];
     actionPlanReviewFields = [
@@ -303,6 +294,7 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
 
     disconnectedCallback() {
         window.clearTimeout(this.userSearchTimer);
+        window.clearTimeout(this.actionPlanTemplateSearchTimer);
         window.clearTimeout(this.visitDetailLoadingTimer);
         if (!this.shouldSaveOnHostClose()) {
             return;
@@ -548,6 +540,22 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
         return this.recentActionPlanTemplates.length > 0;
     }
 
+    get hasActionPlanTemplateSearchResults() {
+        return this.actionPlanTemplateSearchResults.length > 0;
+    }
+
+    get showActionPlanTemplateNoResults() {
+        return this.actionPlanTemplateSearchStarted &&
+            !this.actionPlanTemplateSearching &&
+            !this.hasActionPlanTemplateSearchResults;
+    }
+
+    get actionPlanTemplateSearchHelpText() {
+        return this.actionPlanTemplateVersionId
+            ? 'Selected Meeting Template'
+            : 'Search published Visit Meeting Templates by name.';
+    }
+
     get hasTasks() {
         return this.tasks.length > 0;
     }
@@ -669,6 +677,8 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
         this.actionPlanName = context?.actionPlanName || '';
         this.actionPlanStartDate = context?.actionPlanStartDate || this.todayValue();
         this.actionPlanTemplateVersionId = context?.actionPlanTemplateVersionId;
+        this.actionPlanTemplateName = '';
+        this.actionPlanTemplateSearchTerm = this.templateNameFromActionPlanName(this.actionPlanName);
         this.actionPlanStatus = context?.actionPlanStatus || ACTION_PLAN_STATUS_IN_PROGRESS;
         this.actionPlanTargetRecordId = this.createdVisitId;
         this.tasks = this.decorateTasks(context?.tasks || []);
@@ -683,6 +693,9 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
         }
 
         this.applySerializedState(context?.stateJson);
+        if (!this.actionPlanTemplateSearchTerm && this.actionPlanTemplateName) {
+            this.actionPlanTemplateSearchTerm = this.actionPlanTemplateName;
+        }
 
         if (this.visitFormValues.PlaceId) {
             await this.hydratePlace(this.visitFormValues.PlaceId);
@@ -1022,6 +1035,51 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
         }
     }
 
+    handleActionPlanTemplateSearchInput(event) {
+        const searchTerm = this.getInputValue(event.target);
+        this.actionPlanTemplateSearchTerm = searchTerm;
+        if (this.actionPlanTemplateName && searchTerm !== this.actionPlanTemplateName) {
+            this.clearActionPlanTemplateSelection(true);
+        }
+        this.validateActionPlanTemplateSelection(false);
+        window.clearTimeout(this.actionPlanTemplateSearchTimer);
+
+        const normalizedTerm = (searchTerm || '').trim();
+        if (normalizedTerm.length < 2) {
+            this.actionPlanTemplateSearchResults = [];
+            this.actionPlanTemplateSearchStarted = normalizedTerm.length > 0;
+            this.actionPlanTemplateSearching = false;
+            return;
+        }
+
+        this.actionPlanTemplateSearching = true;
+        this.actionPlanTemplateSearchTimer = window.setTimeout(() => {
+            this.runActionPlanTemplateSearch(normalizedTerm);
+        }, 300);
+    }
+
+    async runActionPlanTemplateSearch(searchTerm) {
+        const normalizedTerm = (searchTerm || '').trim();
+        if (normalizedTerm.length < 2) {
+            this.actionPlanTemplateSearching = false;
+            return;
+        }
+        try {
+            const results = await searchActionPlanTemplates({ searchTerm: normalizedTerm });
+            if ((this.actionPlanTemplateSearchTerm || '').trim() === normalizedTerm) {
+                this.actionPlanTemplateSearchResults = results || [];
+                this.actionPlanTemplateSearchStarted = true;
+            }
+        } catch (error) {
+            this.actionPlanTemplateSearchResults = [];
+            this.handleError(error);
+        } finally {
+            if ((this.actionPlanTemplateSearchTerm || '').trim() === normalizedTerm) {
+                this.actionPlanTemplateSearching = false;
+            }
+        }
+    }
+
     async handleActionPlanTemplateLookupChange(event) {
         const hasRecordId = Object.prototype.hasOwnProperty.call(event.detail || {}, 'recordId');
         const templateVersionId = hasRecordId ? event.detail.recordId : event.detail?.value || null;
@@ -1056,6 +1114,12 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
         }
     }
 
+    async handleActionPlanTemplateSearchRowAction(event) {
+        if (event.detail?.action?.name === ROW_ACTION_SELECT_TEMPLATE) {
+            await this.selectActionPlanTemplate(event.detail.row);
+        }
+    }
+
     async selectActionPlanTemplate(template) {
         const templateVersionId = template?.templateVersionId;
         if (!templateVersionId) {
@@ -1064,10 +1128,21 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
         this.actionPlanTemplateVersionId = null;
         await Promise.resolve();
         this.actionPlanTemplateVersionId = templateVersionId;
-        this.actionPlanName = this.actionPlanNameForTemplate(template.templateName || template.name);
-        const picker = this.template.querySelector('[data-action-plan-template-picker]');
-        if (picker) {
-            picker.value = templateVersionId;
+        this.actionPlanTemplateName = template.templateName || template.name || '';
+        this.actionPlanTemplateSearchTerm = this.actionPlanTemplateName;
+        this.actionPlanName = this.actionPlanNameForTemplate(this.actionPlanTemplateName);
+        this.actionPlanTemplateSearchResults = [];
+        this.actionPlanTemplateSearchStarted = false;
+        this.actionPlanTemplateSearching = false;
+        this.validateActionPlanTemplateSelection(false);
+    }
+
+    clearActionPlanTemplateSelection(preserveSearchTerm) {
+        this.actionPlanTemplateVersionId = null;
+        this.actionPlanTemplateName = '';
+        this.actionPlanName = '';
+        if (!preserveSearchTerm) {
+            this.actionPlanTemplateSearchTerm = '';
         }
     }
 
@@ -1077,6 +1152,13 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
             return name;
         }
         return `${name.slice(0, ACTION_PLAN_NAME_MAX_LENGTH - 2)}..`;
+    }
+
+    templateNameFromActionPlanName(actionPlanName) {
+        if (!actionPlanName || !actionPlanName.startsWith(ACTION_PLAN_NAME_PREFIX)) {
+            return '';
+        }
+        return actionPlanName.slice(ACTION_PLAN_NAME_PREFIX.length);
     }
 
     async handleActionPlanNext() {
@@ -1788,10 +1870,23 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
             return true;
         }
         const fields = Array.from(this.template.querySelectorAll('[data-action-plan-field]'));
-        return fields.reduce((isValid, field) => {
+        const fieldValidity = fields.reduce((isValid, field) => {
             const valid = typeof field.reportValidity === 'function' ? field.reportValidity() : true;
             return isValid && valid && this.hasValue(this.getInputValue(field));
-        }, true) && this.hasValue(this.actionPlanTemplateVersionId);
+        }, true);
+        return fieldValidity && this.validateActionPlanTemplateSelection(true);
+    }
+
+    validateActionPlanTemplateSelection(reportValidity) {
+        const input = this.template.querySelector('[data-action-plan-template-search]');
+        const hasSelection = this.hasValue(this.actionPlanTemplateVersionId);
+        if (input && typeof input.setCustomValidity === 'function') {
+            input.setCustomValidity(hasSelection ? '' : 'Select a Meeting Template.');
+            if (reportValidity && typeof input.reportValidity === 'function') {
+                input.reportValidity();
+            }
+        }
+        return hasSelection;
     }
 
     captureVisitFormValues(validate) {
@@ -1975,6 +2070,7 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
             actionPlanName: this.actionPlanName,
             actionPlanStartDate: this.actionPlanStartDate,
             actionPlanTemplateVersionId: this.actionPlanTemplateVersionId,
+            actionPlanTemplateName: this.actionPlanTemplateName,
             actionPlanStatus: this.actionPlanStatus,
             createActionPlan: this.createActionPlan
         });
@@ -1995,6 +2091,8 @@ export default class VisitWizardV6 extends NavigationMixin(LightningElement) {
             this.actionPlanName = this.actionPlanName || state.actionPlanName || '';
             this.actionPlanStartDate = this.actionPlanStartDate || state.actionPlanStartDate;
             this.actionPlanTemplateVersionId = this.actionPlanTemplateVersionId || state.actionPlanTemplateVersionId;
+            this.actionPlanTemplateName = this.actionPlanTemplateName || state.actionPlanTemplateName || this.templateNameFromActionPlanName(this.actionPlanName);
+            this.actionPlanTemplateSearchTerm = this.actionPlanTemplateSearchTerm || this.actionPlanTemplateName;
             this.actionPlanStatus = this.actionPlanStatus || state.actionPlanStatus;
             this.createActionPlan = state.createActionPlan !== false;
             if (this.actionPlanId) {

@@ -1140,6 +1140,16 @@ private class VisitWizardControllerTest {
     }
 
     @IsTest
+    static void searchActionPlanTemplatesHandlesBlankSearch() {
+        Test.startTest();
+        List<VisitWizardController.ActionPlanTemplateOption> options =
+            VisitWizardController.searchActionPlanTemplates(null);
+        Test.stopTest();
+
+        System.assertEquals(0, options.size(), 'Blank Meeting Template search should return no manual results.');
+    }
+
+    @IsTest
     static void saveActionPlanCreatesPublishedVisitTemplateActionPlan() {
         if (!hasObjects(new Set<String>{ 'Visit', 'Visitor', 'VisitedParty', 'Location', 'ActionPlan', 'ActionPlanTemplate', 'ActionPlanTemplateVersion' })) {
             return;
