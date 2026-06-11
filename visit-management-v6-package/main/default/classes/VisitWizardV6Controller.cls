@@ -5,16 +5,20 @@ public inherited sharing class VisitWizardV6Controller {
     private static final String ACTION_PLAN_OBJECT = 'ActionPlan';
     private static final String ACTION_PLAN_ITEM_OBJECT = 'ActionPlanItem';
     private static final String GENERIC_VISIT_TASK_OBJECT = 'GenericVisitTask';
+    private static final String GENERIC_VISIT_TASK_CONTEXT_OBJECT = 'GenericVisitTaskContext';
+    private static final String GENERIC_VISIT_TASK_CONTEXT_RELATION_OBJECT = 'GnrcVstTaskContextRelation';
     private static final String CONTENT_NOTE_OBJECT = 'ContentNote';
+    private static final String CONTENT_VERSION_OBJECT = 'ContentVersion';
     private static final String CONTENT_DOCUMENT_LINK_OBJECT = 'ContentDocumentLink';
     private static final String RESUME_FIELD = 'Visit_Wizard_Resume_Page__c';
     private static final String STATE_FIELD = 'Visit_Wizard_State__c';
     private static final String ACTION_PLAN_ID_FIELD = 'Visit_Wizard_Action_Plan_Id__c';
-    private static final String OPPORTUNITY_VISIT_FIELD = 'Visit__c';
+    private static final String OPPORTUNITY_VISIT_FIELD = 'Related_Visit__c';
     private static final String VISIT_STATUS_IN_PROGRESS = 'InProgress';
     private static final String VISIT_STATUS_IN_PROGRESS_LABEL = 'In Progress';
     private static final String ACTION_PLAN_STATE_IN_PROGRESS = 'In Progress';
     private static final String ACTION_PLAN_STATE_COMPLETED = 'Completed';
+    private static final String OPPORTUNITY_STAGE_INITIAL_NOTIFICATION = 'Initial Notification';
 
     public class LaunchContext {
         @AuraEnabled public String mode;
@@ -65,6 +69,17 @@ public inherited sharing class VisitWizardV6Controller {
         @AuraEnabled public Datetime endDateTime;
         @AuraEnabled public Boolean completed;
         @AuraEnabled public Boolean salesTask;
+        @AuraEnabled public Id topicContextId;
+        @AuraEnabled public Id topicContextProductId;
+        @AuraEnabled public String topicContextProductName;
+        @AuraEnabled public List<TaskContextSummary> topicContexts;
+    }
+
+    public class TaskContextSummary {
+        @AuraEnabled public Id contextId;
+        @AuraEnabled public String contextName;
+        @AuraEnabled public Id productId;
+        @AuraEnabled public String productName;
     }
 
     public class NoteSummary {
@@ -75,6 +90,23 @@ public inherited sharing class VisitWizardV6Controller {
         @AuraEnabled public String textPreview;
         @AuraEnabled public Datetime createdDate;
         @AuraEnabled public String createdByName;
+    }
+
+    public class TopicFileSummary {
+        @AuraEnabled public Id contentDocumentId;
+        @AuraEnabled public String title;
+        @AuraEnabled public String fileName;
+        @AuraEnabled public String fileType;
+        @AuraEnabled public String fileExtension;
+        @AuraEnabled public Integer contentSize;
+        @AuraEnabled public Datetime createdDate;
+        @AuraEnabled public String createdByName;
+    }
+
+    public class TaskDetail {
+        @AuraEnabled public TaskSummary task;
+        @AuraEnabled public List<NoteSummary> notes;
+        @AuraEnabled public List<TopicFileSummary> files;
     }
 
     public class TaskListResponse {
@@ -98,6 +130,21 @@ public inherited sharing class VisitWizardV6Controller {
         @AuraEnabled public String stageName;
         @AuraEnabled public Date closeDate;
         @AuraEnabled public Decimal amount;
+        @AuraEnabled public Integer productCount;
+        @AuraEnabled public String productNames;
+    }
+
+    public class OpportunityProductResult {
+        @AuraEnabled public Integer lineItemCount;
+        @AuraEnabled public Integer skippedProductCount;
+        @AuraEnabled public String message;
+    }
+
+    public class FollowUpResult {
+        @AuraEnabled public Id taskId;
+        @AuraEnabled public Id eventId;
+        @AuraEnabled public Integer contactCount;
+        @AuraEnabled public String message;
     }
 
     @AuraEnabled(cacheable=true)
@@ -158,6 +205,108 @@ public inherited sharing class VisitWizardV6Controller {
     @AuraEnabled(cacheable=true)
     public static List<VisitWizardController.ContactCandidate> searchContacts(Id accountId, String searchTerm, List<Id> excludedContactIds) {
         return VisitWizardController.searchContacts(accountId, searchTerm, excludedContactIds);
+    }
+
+    @AuraEnabled
+    public static FollowUpResult createFollowUp(String requestJson) {
+        Map<String, Object> request = parseRequest(requestJson, 'Follow up request is required.');
+        Id visitId = toId(request.get('visitId'));
+        Id ownerId = toId(valueOrDefault(request.get('ownerId'), UserInfo.getUserId()));
+        String subject = String.valueOf(valueOrDefault(request.get('subject'), 'Follow up')).trim();
+        Date dueDate = toDate(request.get('dueDate'));
+        List<Id> contactIds = idsFromList(request.get('contactIds'));
+
+        if (visitId == null) {
+            throw userError('Visit Id is required before creating a follow up.');
+        }
+        if (ownerId == null) {
+            throw userError('Task owner is required.');
+        }
+        if (String.isBlank(subject)) {
+            throw userError('Subject is required.');
+        }
+        if (dueDate == null) {
+            throw userError('Due Date is required.');
+        }
+        if (contactIds.isEmpty()) {
+            throw userError('At least one contact is required for the follow up.');
+        }
+        if (!Task.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isCreateable()) {
+            throw userError('You do not have create access to Task.');
+        }
+        if (!Event.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isCreateable()) {
+            throw userError('You do not have create access to Event.');
+        }
+
+        List<SObject> visits = Database.query('SELECT Id FROM Visit WHERE Id = :visitId WITH USER_MODE LIMIT 1');
+        if (visits.isEmpty()) {
+            throw userError('Visit could not be found.');
+        }
+
+        List<User> owners = [
+            SELECT Id
+            FROM User
+            WHERE Id = :ownerId
+            AND IsActive = true
+            WITH USER_MODE
+            LIMIT 1
+        ];
+        if (owners.isEmpty()) {
+            throw userError('Task owner must be an active Salesforce user.');
+        }
+
+        List<Id> uniqueContactIds = uniqueIdsPreserveOrder(contactIds);
+        Map<Id, Contact> contacts = new Map<Id, Contact>([
+            SELECT Id
+            FROM Contact
+            WHERE Id IN :uniqueContactIds
+            WITH USER_MODE
+        ]);
+        if (contacts.size() != uniqueContactIds.size()) {
+            throw userError('One or more follow up contacts could not be found.');
+        }
+
+        Id primaryContactId = uniqueContactIds[0];
+        Map<String, Schema.SObjectField> taskFields = objectFields('Task');
+        Task taskRecord = new Task();
+        putIfCreateable(taskRecord, taskFields, 'OwnerId', ownerId);
+        putIfCreateable(taskRecord, taskFields, 'WhoId', primaryContactId);
+        putIfCreateable(taskRecord, taskFields, 'WhatId', visitId);
+        putIfCreateable(taskRecord, taskFields, 'Subject', subject);
+        putIfCreateable(taskRecord, taskFields, 'ActivityDate', dueDate);
+        putIfCreateable(taskRecord, taskFields, 'Status', activePicklistValue(taskFields.get('Status'), 'Not Started'));
+        putIfCreateable(taskRecord, taskFields, 'Priority', activePicklistValue(taskFields.get('Priority'), 'Normal'));
+
+        Datetime eventStart = Datetime.newInstance(dueDate, Time.newInstance(9, 0, 0, 0));
+        Map<String, Schema.SObjectField> eventFields = objectFields('Event');
+        Event eventRecord = new Event();
+        putIfCreateable(eventRecord, eventFields, 'OwnerId', ownerId);
+        putIfCreateable(eventRecord, eventFields, 'WhoId', primaryContactId);
+        putIfCreateable(eventRecord, eventFields, 'WhatId', visitId);
+        putIfCreateable(eventRecord, eventFields, 'Subject', subject);
+        putIfCreateable(eventRecord, eventFields, 'StartDateTime', eventStart);
+        putIfCreateable(eventRecord, eventFields, 'EndDateTime', eventStart.addMinutes(30));
+
+        Savepoint savePoint = Database.setSavepoint();
+        try {
+            List<SObject> creatableTasks = Security.stripInaccessible(AccessType.CREATABLE, new List<SObject>{ taskRecord }).getRecords();
+            Database.insert(creatableTasks, AccessLevel.USER_MODE);
+            Id taskId = (Id) creatableTasks[0].get('Id');
+            insertAdditionalTaskRelations(taskId, uniqueContactIds);
+
+            List<SObject> creatableEvents = Security.stripInaccessible(AccessType.CREATABLE, new List<SObject>{ eventRecord }).getRecords();
+            Database.insert(creatableEvents, AccessLevel.USER_MODE);
+
+            FollowUpResult result = new FollowUpResult();
+            result.taskId = taskId;
+            result.eventId = (Id) creatableEvents[0].get('Id');
+            result.contactCount = uniqueContactIds.size();
+            result.message = 'Follow up Task and calendar activity were created.';
+            return result;
+        } catch (DmlException e) {
+            Database.rollback(savePoint);
+            throw userError(firstDmlMessage(e));
+        }
     }
 
     @AuraEnabled(cacheable=true)
@@ -344,9 +493,13 @@ public inherited sharing class VisitWizardV6Controller {
         Map<String, Schema.SObjectField> fields = objectFields(GENERIC_VISIT_TASK_OBJECT);
         if (genericTaskId != null && !fields.isEmpty()) {
             SObject taskRecord = Schema.getGlobalDescribe().get(GENERIC_VISIT_TASK_OBJECT).newSObject(genericTaskId);
+            putIfUpdateable(taskRecord, fields, 'Name', request.get('name'));
             putIfUpdateable(taskRecord, fields, 'Description', request.get('description'));
             putIfUpdateable(taskRecord, fields, 'StartDateTime', startDateTime);
             putIfUpdateable(taskRecord, fields, 'EndDateTime', endDateTime);
+            if (request.containsKey('required')) {
+                putIfUpdateable(taskRecord, fields, 'IsRequired', request.get('required'));
+            }
             String currentStatus = currentGenericTaskStatus(genericTaskId);
             if (complete) {
                 putIfUpdateableWhenChanged(taskRecord, fields, 'Status', 'Completed', currentStatus);
@@ -372,6 +525,18 @@ public inherited sharing class VisitWizardV6Controller {
     @AuraEnabled
     public static List<NoteSummary> getTaskNotes(Id genericTaskId) {
         return taskNotes(genericTaskId);
+    }
+
+    @AuraEnabled
+    public static TaskDetail getTaskDetail(Id genericTaskId) {
+        if (genericTaskId == null) {
+            throw userError('Task Id is required.');
+        }
+        TaskDetail detail = new TaskDetail();
+        detail.task = taskSummaryById(genericTaskId);
+        detail.notes = taskNotes(genericTaskId);
+        detail.files = taskFiles(genericTaskId);
+        return detail;
     }
 
     @AuraEnabled
@@ -413,6 +578,261 @@ public inherited sharing class VisitWizardV6Controller {
         return taskNotes(genericTaskId);
     }
 
+    @AuraEnabled
+    public static Integer saveTopicFiles(String requestJson) {
+        Map<String, Object> request = parseRequest(requestJson, 'Topic file request is required.');
+        Id genericTaskId = toId(request.get('genericTaskId'));
+        List<Id> visitorUserIds = idsFromList(request.get('visitorUserIds'));
+        if (genericTaskId == null) {
+            throw userError('Task Id is required to upload files.');
+        }
+        if (!visitorUserIds.isEmpty()) {
+            assertActiveUsers(visitorUserIds);
+        }
+        if (Schema.getGlobalDescribe().get(CONTENT_VERSION_OBJECT) == null ||
+            Schema.getGlobalDescribe().get(CONTENT_DOCUMENT_LINK_OBJECT) == null) {
+            throw userError('Salesforce Files are not available in this org.');
+        }
+        if (!Schema.getGlobalDescribe().get(CONTENT_VERSION_OBJECT).getDescribe(SObjectDescribeOptions.DEFERRED).isCreateable() ||
+            !Schema.getGlobalDescribe().get(CONTENT_DOCUMENT_LINK_OBJECT).getDescribe(SObjectDescribeOptions.DEFERRED).isCreateable()) {
+            throw userError('You do not have access to upload files for this Topic.');
+        }
+
+        Object filesValue = request.get('files');
+        if (!(filesValue instanceof List<Object>)) {
+            return 0;
+        }
+
+        List<SObject> versionRows = new List<SObject>();
+        for (Object fileValue : (List<Object>) filesValue) {
+            Map<String, Object> fileData = asMap(fileValue);
+            String fileName = String.valueOf(valueOrDefault(fileData.get('fileName'), 'Topic File')).trim();
+            String base64Data = String.valueOf(valueOrDefault(fileData.get('base64Data'), '')).trim();
+            if (String.isBlank(base64Data)) {
+                continue;
+            }
+            ContentVersion versionRecord = new ContentVersion();
+            versionRecord.Title = fileTitle(fileName).left(255);
+            versionRecord.PathOnClient = filePath(fileName).left(500);
+            versionRecord.VersionData = EncodingUtil.base64Decode(base64Data);
+            versionRows.add(versionRecord);
+        }
+
+        if (versionRows.isEmpty()) {
+            return 0;
+        }
+
+        Savepoint savePoint = Database.setSavepoint();
+        try {
+            List<SObject> creatableVersions = Security.stripInaccessible(AccessType.CREATABLE, versionRows).getRecords();
+            Database.insert(creatableVersions, AccessLevel.USER_MODE);
+
+            Set<Id> versionIds = new Set<Id>();
+            for (SObject versionRecord : creatableVersions) {
+                versionIds.add((Id) versionRecord.get('Id'));
+            }
+
+            Set<Id> documentIds = new Set<Id>();
+            for (ContentVersion versionRecord : [
+                SELECT Id, ContentDocumentId
+                FROM ContentVersion
+                WHERE Id IN :versionIds
+                WITH USER_MODE
+            ]) {
+                if (versionRecord.ContentDocumentId != null) {
+                    documentIds.add(versionRecord.ContentDocumentId);
+                }
+            }
+
+            List<Id> linkedEntityIds = uniqueIdsPreserveOrder(new List<Id>{ genericTaskId });
+            linkedEntityIds.addAll(uniqueIdsPreserveOrder(visitorUserIds));
+            Set<Id> linkedEntityIdSet = new Set<Id>(linkedEntityIds);
+            Set<String> existingLinkKeys = new Set<String>();
+            if (!documentIds.isEmpty() && !linkedEntityIdSet.isEmpty()) {
+                for (ContentDocumentLink linkRecord : [
+                    SELECT ContentDocumentId, LinkedEntityId
+                    FROM ContentDocumentLink
+                    WHERE ContentDocumentId IN :documentIds
+                    AND LinkedEntityId IN :linkedEntityIdSet
+                    WITH USER_MODE
+                ]) {
+                    existingLinkKeys.add(linkRecord.ContentDocumentId + ':' + linkRecord.LinkedEntityId);
+                }
+            }
+
+            List<SObject> linkRows = new List<SObject>();
+            for (Id documentId : documentIds) {
+                for (Id linkedEntityId : linkedEntityIds) {
+                    if (linkedEntityId == null || existingLinkKeys.contains(documentId + ':' + linkedEntityId)) {
+                        continue;
+                    }
+                    ContentDocumentLink linkRecord = new ContentDocumentLink();
+                    linkRecord.ContentDocumentId = documentId;
+                    linkRecord.LinkedEntityId = linkedEntityId;
+                    linkRecord.ShareType = 'V';
+                    linkRecord.Visibility = 'AllUsers';
+                    linkRows.add(linkRecord);
+                }
+            }
+            if (!linkRows.isEmpty()) {
+                Database.insert(Security.stripInaccessible(AccessType.CREATABLE, linkRows).getRecords(), AccessLevel.USER_MODE);
+            }
+            return documentIds.size();
+        } catch (DmlException e) {
+            Database.rollback(savePoint);
+            throw userError(firstDmlMessage(e));
+        } catch (Exception e) {
+            Database.rollback(savePoint);
+            throw userError(firstExceptionMessage(e));
+        }
+    }
+
+    @AuraEnabled
+    public static Integer linkUploadedTopicFiles(String requestJson) {
+        Map<String, Object> request = parseRequest(requestJson, 'Uploaded Topic file request is required.');
+        Id genericTaskId = toId(request.get('genericTaskId'));
+        Id temporaryLinkedEntityId = toId(request.get('temporaryLinkedEntityId'));
+        List<Id> visitorUserIds = idsFromList(request.get('visitorUserIds'));
+        List<Id> contentDocumentIds = idsFromList(request.get('contentDocumentIds'));
+        if (genericTaskId == null) {
+            throw userError('Task Id is required to attach uploaded files.');
+        }
+        if (contentDocumentIds.isEmpty()) {
+            return 0;
+        }
+        if (!visitorUserIds.isEmpty()) {
+            assertActiveUsers(visitorUserIds);
+        }
+        if (Schema.getGlobalDescribe().get(CONTENT_DOCUMENT_LINK_OBJECT) == null ||
+            !Schema.getGlobalDescribe().get(CONTENT_DOCUMENT_LINK_OBJECT).getDescribe(SObjectDescribeOptions.DEFERRED).isCreateable()) {
+            throw userError('You do not have access to attach files for this Topic.');
+        }
+
+        List<Id> linkedEntityIds = uniqueIdsPreserveOrder(new List<Id>{ genericTaskId });
+        linkedEntityIds.addAll(uniqueIdsPreserveOrder(visitorUserIds));
+        Set<Id> linkedEntityIdSet = new Set<Id>(linkedEntityIds);
+        Set<Id> documentIdSet = new Set<Id>(contentDocumentIds);
+        Set<String> existingLinkKeys = new Set<String>();
+        for (ContentDocumentLink linkRecord : [
+            SELECT ContentDocumentId, LinkedEntityId
+            FROM ContentDocumentLink
+            WHERE ContentDocumentId IN :documentIdSet
+            AND LinkedEntityId IN :linkedEntityIdSet
+            WITH USER_MODE
+        ]) {
+            existingLinkKeys.add(linkRecord.ContentDocumentId + ':' + linkRecord.LinkedEntityId);
+        }
+
+        List<SObject> linkRows = new List<SObject>();
+        for (Id documentId : contentDocumentIds) {
+            for (Id linkedEntityId : linkedEntityIds) {
+                if (linkedEntityId == null || existingLinkKeys.contains(documentId + ':' + linkedEntityId)) {
+                    continue;
+                }
+                ContentDocumentLink linkRecord = new ContentDocumentLink();
+                linkRecord.ContentDocumentId = documentId;
+                linkRecord.LinkedEntityId = linkedEntityId;
+                linkRecord.ShareType = 'V';
+                linkRecord.Visibility = 'AllUsers';
+                linkRows.add(linkRecord);
+            }
+        }
+
+        Savepoint savePoint = Database.setSavepoint();
+        try {
+            if (!linkRows.isEmpty()) {
+                Database.insert(Security.stripInaccessible(AccessType.CREATABLE, linkRows).getRecords(), AccessLevel.USER_MODE);
+            }
+            removeTemporaryFileLinks(temporaryLinkedEntityId, contentDocumentIds);
+            return contentDocumentIds.size();
+        } catch (DmlException e) {
+            Database.rollback(savePoint);
+            throw userError(firstDmlMessage(e));
+        } catch (Exception e) {
+            Database.rollback(savePoint);
+            throw userError(firstExceptionMessage(e));
+        }
+    }
+
+    @AuraEnabled
+    public static void deleteTopicUploadFile(String requestJson) {
+        Map<String, Object> request = parseRequest(requestJson, 'Uploaded file delete request is required.');
+        Id contentDocumentId = toId(request.get('contentDocumentId'));
+        Id temporaryLinkedEntityId = toId(request.get('temporaryLinkedEntityId'));
+        if (contentDocumentId == null || temporaryLinkedEntityId == null) {
+            return;
+        }
+
+        List<ContentDocumentLink> temporaryLinks = [
+            SELECT Id
+            FROM ContentDocumentLink
+            WHERE ContentDocumentId = :contentDocumentId
+            AND LinkedEntityId = :temporaryLinkedEntityId
+            WITH USER_MODE
+            LIMIT 1
+        ];
+        if (temporaryLinks.isEmpty()) {
+            return;
+        }
+
+        try {
+            if (ContentDocument.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isDeletable()) {
+                Database.delete(new List<ContentDocument>{ new ContentDocument(Id = contentDocumentId) }, AccessLevel.USER_MODE);
+            } else if (ContentDocumentLink.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isDeletable()) {
+                Database.delete(temporaryLinks, AccessLevel.USER_MODE);
+            }
+        } catch (DmlException e) {
+            throw userError(firstDmlMessage(e));
+        }
+    }
+
+    @AuraEnabled
+    public static List<TopicFileSummary> deleteTopicFiles(String requestJson) {
+        Map<String, Object> request = parseRequest(requestJson, 'Topic file delete request is required.');
+        Id genericTaskId = toId(request.get('genericTaskId'));
+        List<Id> contentDocumentIds = idsFromList(request.get('contentDocumentIds'));
+        if (genericTaskId == null) {
+            throw userError('Task Id is required to remove files.');
+        }
+        if (contentDocumentIds.isEmpty()) {
+            return taskFiles(genericTaskId);
+        }
+
+        Set<Id> requestedDocumentIds = new Set<Id>(contentDocumentIds);
+        List<ContentDocumentLink> links = [
+            SELECT Id, ContentDocumentId
+            FROM ContentDocumentLink
+            WHERE LinkedEntityId = :genericTaskId
+            AND ContentDocumentId IN :requestedDocumentIds
+            WITH USER_MODE
+        ];
+        if (links.isEmpty()) {
+            return taskFiles(genericTaskId);
+        }
+
+        Set<Id> linkedDocumentIds = new Set<Id>();
+        for (ContentDocumentLink linkRecord : links) {
+            linkedDocumentIds.add(linkRecord.ContentDocumentId);
+        }
+
+        try {
+            if (ContentDocument.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isDeletable()) {
+                List<ContentDocument> documents = new List<ContentDocument>();
+                for (Id documentId : linkedDocumentIds) {
+                    documents.add(new ContentDocument(Id = documentId));
+                }
+                Database.delete(documents, AccessLevel.USER_MODE);
+            } else if (ContentDocumentLink.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isDeletable()) {
+                Database.delete(links, AccessLevel.USER_MODE);
+            } else {
+                throw userError('You do not have access to remove files from this Topic.');
+            }
+            return taskFiles(genericTaskId);
+        } catch (DmlException e) {
+            throw userError(firstDmlMessage(e));
+        }
+    }
+
     @AuraEnabled(cacheable=true)
     public static OpportunityDefaults getOpportunityDefaults(Id visitId) {
         if (visitId == null) {
@@ -424,9 +844,9 @@ public inherited sharing class VisitWizardV6Controller {
         defaults.visitId = visitId;
         defaults.accountId = (Id) visitRecord.get('AccountId');
         defaults.closeDate = Date.today().addDays(30);
-        defaults.stageName = activeOpportunityStage('Draft');
-        if (defaults.stageName != 'Draft') {
-            defaults.warning = 'Draft is not active on Opportunity Stage. The first active stage was selected.';
+        defaults.stageName = activeOpportunityStage(OPPORTUNITY_STAGE_INITIAL_NOTIFICATION);
+        if (defaults.stageName != OPPORTUNITY_STAGE_INITIAL_NOTIFICATION) {
+            defaults.warning = 'Initial Notification is not active on Opportunity Stage. The first active stage was selected.';
         }
         if (defaults.accountId != null) {
             try {
@@ -461,7 +881,7 @@ public inherited sharing class VisitWizardV6Controller {
         opportunityRecord.Name = name.left(120);
         opportunityRecord.AccountId = accountId;
         opportunityRecord.CloseDate = closeDate;
-        opportunityRecord.StageName = activeOpportunityStage('Draft');
+        opportunityRecord.StageName = activeOpportunityStage(OPPORTUNITY_STAGE_INITIAL_NOTIFICATION);
         if (fields.containsKey(OPPORTUNITY_VISIT_FIELD) && fields.get(OPPORTUNITY_VISIT_FIELD).getDescribe().isCreateable()) {
             opportunityRecord.put(OPPORTUNITY_VISIT_FIELD, visitId);
         }
@@ -478,6 +898,113 @@ public inherited sharing class VisitWizardV6Controller {
         List<SObject> creatableOpportunities = Security.stripInaccessible(AccessType.CREATABLE, new List<SObject>{ opportunityRecord }).getRecords();
         Database.insert(creatableOpportunities, AccessLevel.USER_MODE);
         return toOpportunitySummary((Opportunity) creatableOpportunities[0]);
+    }
+
+    @AuraEnabled
+    public static OpportunityProductResult addOpportunityProductsFromTopicContexts(Id opportunityId, Id visitId) {
+        OpportunityProductResult result = new OpportunityProductResult();
+        result.lineItemCount = 0;
+        result.skippedProductCount = 0;
+        if (opportunityId == null || visitId == null) {
+            result.message = 'Opportunity or Visit was missing, so products were not added.';
+            return result;
+        }
+        if (!OpportunityLineItem.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isCreateable()) {
+            throw userError('You do not have access to create Opportunity Products.');
+        }
+
+        List<Opportunity> opportunities = [
+            SELECT Id, Pricebook2Id
+            FROM Opportunity
+            WHERE Id = :opportunityId
+            WITH USER_MODE
+            LIMIT 1
+        ];
+        if (opportunities.isEmpty()) {
+            throw userError('Opportunity could not be found.');
+        }
+
+        List<Id> productIds = topicContextProductIds(visitId);
+        if (productIds.isEmpty()) {
+            result.message = 'No Topic Context Products were selected.';
+            return result;
+        }
+
+        Map<Id, List<PricebookEntry>> entriesByPricebookId = new Map<Id, List<PricebookEntry>>();
+        Map<Id, PricebookEntry> standardEntriesByProductId = new Map<Id, PricebookEntry>();
+        for (PricebookEntry entry : [
+            SELECT Id, Product2Id, Pricebook2Id, UnitPrice, Pricebook2.IsStandard
+            FROM PricebookEntry
+            WHERE Product2Id IN :productIds
+            AND IsActive = true
+            AND Pricebook2.IsActive = true
+            WITH USER_MODE
+        ]) {
+            if (!entriesByPricebookId.containsKey(entry.Pricebook2Id)) {
+                entriesByPricebookId.put(entry.Pricebook2Id, new List<PricebookEntry>());
+            }
+            entriesByPricebookId.get(entry.Pricebook2Id).add(entry);
+            if (entry.Pricebook2.IsStandard) {
+                standardEntriesByProductId.put(entry.Product2Id, entry);
+            }
+        }
+        if (entriesByPricebookId.isEmpty()) {
+            result.skippedProductCount = productIds.size();
+            result.message = 'No active Price Book Entries were found for the selected Topic Context Products.';
+            return result;
+        }
+
+        Id selectedPricebookId = choosePricebookId(opportunities[0].Pricebook2Id, entriesByPricebookId);
+        Map<Id, PricebookEntry> entriesByProductId = new Map<Id, PricebookEntry>();
+        for (PricebookEntry entry : entriesByPricebookId.get(selectedPricebookId)) {
+            if (!entriesByProductId.containsKey(entry.Product2Id)) {
+                entriesByProductId.put(entry.Product2Id, entry);
+            }
+        }
+
+        if (opportunities[0].Pricebook2Id == null || opportunities[0].Pricebook2Id != selectedPricebookId) {
+            Opportunity opportunityRecord = new Opportunity(Id = opportunityId, Pricebook2Id = selectedPricebookId);
+            Database.update(Security.stripInaccessible(AccessType.UPDATABLE, new List<SObject>{ opportunityRecord }).getRecords(), AccessLevel.USER_MODE);
+        }
+
+        Set<Id> existingProductIds = new Set<Id>();
+        for (OpportunityLineItem lineItem : [
+            SELECT Id, PricebookEntry.Product2Id
+            FROM OpportunityLineItem
+            WHERE OpportunityId = :opportunityId
+            WITH USER_MODE
+        ]) {
+            existingProductIds.add(lineItem.PricebookEntry.Product2Id);
+        }
+
+        List<SObject> lineItems = new List<SObject>();
+        for (Id productId : productIds) {
+            if (existingProductIds.contains(productId)) {
+                continue;
+            }
+            PricebookEntry entry = entriesByProductId.get(productId);
+            if (entry == null) {
+                result.skippedProductCount++;
+                continue;
+            }
+            OpportunityLineItem lineItem = new OpportunityLineItem();
+            lineItem.OpportunityId = opportunityId;
+            lineItem.PricebookEntryId = entry.Id;
+            lineItem.Quantity = 1;
+            lineItem.UnitPrice = entry.UnitPrice == null ? 0 : entry.UnitPrice;
+            lineItems.add(lineItem);
+        }
+
+        if (!lineItems.isEmpty()) {
+            Database.insert(Security.stripInaccessible(AccessType.CREATABLE, lineItems).getRecords(), AccessLevel.USER_MODE);
+            result.lineItemCount = lineItems.size();
+        }
+        if (result.skippedProductCount > 0) {
+            result.message = result.lineItemCount + ' Opportunity Product(s) added. ' + result.skippedProductCount + ' Product(s) were skipped because no active Price Book Entry exists in the selected Price Book.';
+        } else {
+            result.message = result.lineItemCount + ' Opportunity Product(s) added.';
+        }
+        return result;
     }
 
     @AuraEnabled
@@ -806,6 +1333,7 @@ public inherited sharing class VisitWizardV6Controller {
                 response.tasks.add(toTaskSummary(tasksById.get(taskId), null));
             }
         }
+        hydrateTopicContexts(response.tasks);
         response.requiredTasksComplete = requiredTasksComplete(response.tasks);
         return response;
     }
@@ -827,6 +1355,7 @@ public inherited sharing class VisitWizardV6Controller {
 
     private static TaskSummary toTaskSummary(SObject task, SObject item) {
         TaskSummary summary = new TaskSummary();
+        summary.topicContexts = new List<TaskContextSummary>();
         if (item != null) {
             summary.actionPlanItemId = (Id) item.get('Id');
             summary.itemState = (String) item.get('ItemState');
@@ -851,6 +1380,113 @@ public inherited sharing class VisitWizardV6Controller {
         return summary;
     }
 
+    private static TaskSummary taskSummaryById(Id genericTaskId) {
+        if (genericTaskId == null || Schema.getGlobalDescribe().get(GENERIC_VISIT_TASK_OBJECT) == null) {
+            return null;
+        }
+        List<SObject> records = Database.query(
+            'SELECT Id, Name, VisitId, Description, Status, StatusCode, StartDateTime, EndDateTime, IsRequired, Sequence ' +
+            'FROM GenericVisitTask WHERE Id = :genericTaskId WITH USER_MODE LIMIT 1'
+        );
+        if (records.isEmpty()) {
+            return null;
+        }
+        TaskSummary summary = toTaskSummary(records[0], null);
+        hydrateTopicContexts(new List<TaskSummary>{ summary });
+        return summary;
+    }
+
+    private static void hydrateTopicContexts(List<TaskSummary> summaries) {
+        if (summaries == null ||
+            summaries.isEmpty() ||
+            Schema.getGlobalDescribe().get(GENERIC_VISIT_TASK_CONTEXT_OBJECT) == null ||
+            Schema.getGlobalDescribe().get(GENERIC_VISIT_TASK_CONTEXT_RELATION_OBJECT) == null ||
+            !Product2.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isAccessible()) {
+            return;
+        }
+
+        Set<Id> taskIds = new Set<Id>();
+        for (TaskSummary summary : summaries) {
+            if (summary != null && summary.genericTaskId != null) {
+                taskIds.add(summary.genericTaskId);
+            }
+        }
+        if (taskIds.isEmpty()) {
+            return;
+        }
+
+        try {
+            Map<Id, List<Id>> taskIdToContextIds = new Map<Id, List<Id>>();
+            Set<Id> contextIds = new Set<Id>();
+            for (SObject relationRecord : Database.query(
+                'SELECT Id, VisitTaskId, VisitTaskContextId ' +
+                'FROM GnrcVstTaskContextRelation WHERE VisitTaskId IN :taskIds WITH USER_MODE ORDER BY CreatedDate DESC'
+            )) {
+                Id taskId = (Id) relationRecord.get('VisitTaskId');
+                Id contextId = (Id) relationRecord.get('VisitTaskContextId');
+                if (taskId != null && contextId != null) {
+                    if (!taskIdToContextIds.containsKey(taskId)) {
+                        taskIdToContextIds.put(taskId, new List<Id>());
+                    }
+                    if (!taskIdToContextIds.get(taskId).contains(contextId)) {
+                        taskIdToContextIds.get(taskId).add(contextId);
+                        contextIds.add(contextId);
+                    }
+                }
+            }
+            if (contextIds.isEmpty()) {
+                return;
+            }
+
+            Map<Id, String> contextIdToName = new Map<Id, String>();
+            Map<Id, Id> contextIdToProductId = new Map<Id, Id>();
+            Set<Id> productIds = new Set<Id>();
+            for (SObject contextRecord : Database.query(
+                'SELECT Id, Name, ContextId FROM GenericVisitTaskContext WHERE Id IN :contextIds WITH USER_MODE'
+            )) {
+                Id contextId = (Id) contextRecord.get('Id');
+                contextIdToName.put(contextId, (String) contextRecord.get('Name'));
+                Id productId = (Id) contextRecord.get('ContextId');
+                if (productId != null && String.valueOf(productId).startsWith('01t')) {
+                    contextIdToProductId.put(contextId, productId);
+                    productIds.add(productId);
+                }
+            }
+
+            Map<Id, Product2> products = productIds.isEmpty()
+                ? new Map<Id, Product2>()
+                : new Map<Id, Product2>([
+                    SELECT Id, Name
+                    FROM Product2
+                    WHERE Id IN :productIds
+                    WITH USER_MODE
+                ]);
+            for (TaskSummary summary : summaries) {
+                List<Id> summaryContextIds = taskIdToContextIds.get(summary.genericTaskId);
+                if (summaryContextIds == null || summaryContextIds.isEmpty()) {
+                    continue;
+                }
+                summary.topicContexts = new List<TaskContextSummary>();
+                for (Id contextId : summaryContextIds) {
+                    TaskContextSummary contextSummary = new TaskContextSummary();
+                    contextSummary.contextId = contextId;
+                    contextSummary.contextName = contextIdToName.get(contextId);
+                    contextSummary.productId = contextIdToProductId.get(contextId);
+                    contextSummary.productName = contextSummary.productId != null && products.containsKey(contextSummary.productId)
+                        ? products.get(contextSummary.productId).Name
+                        : null;
+                    summary.topicContexts.add(contextSummary);
+                }
+                TaskContextSummary firstContext = summary.topicContexts[0];
+                summary.topicContextId = firstContext.contextId;
+                summary.topicContextProductId = firstContext.productId;
+                summary.topicContextProductName = firstContext.productName;
+            }
+        } catch (Exception ignored) {
+            return;
+        }
+    }
+
     private static void updateTaskStatus(Id actionPlanItemId, Id genericTaskId, String taskStatus, String itemState) {
         if (actionPlanItemId != null && Schema.getGlobalDescribe().get(ACTION_PLAN_ITEM_OBJECT) != null) {
             Map<String, Schema.SObjectField> itemFields = objectFields(ACTION_PLAN_ITEM_OBJECT);
@@ -866,6 +1502,27 @@ public inherited sharing class VisitWizardV6Controller {
             if (taskRecord.getPopulatedFieldsAsMap().size() > 1) {
                 Database.update(Security.stripInaccessible(AccessType.UPDATABLE, new List<SObject>{ taskRecord }).getRecords(), AccessLevel.USER_MODE);
             }
+        }
+    }
+
+    private static void removeTemporaryFileLinks(Id temporaryLinkedEntityId, List<Id> contentDocumentIds) {
+        if (temporaryLinkedEntityId == null ||
+            contentDocumentIds == null ||
+            contentDocumentIds.isEmpty() ||
+            !ContentDocumentLink.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isDeletable()) {
+            return;
+        }
+
+        Set<Id> documentIdSet = new Set<Id>(contentDocumentIds);
+        List<ContentDocumentLink> links = [
+            SELECT Id
+            FROM ContentDocumentLink
+            WHERE ContentDocumentId IN :documentIdSet
+            AND LinkedEntityId = :temporaryLinkedEntityId
+            WITH USER_MODE
+        ];
+        if (!links.isEmpty()) {
+            Database.delete(links, AccessLevel.USER_MODE);
         }
     }
 
@@ -984,12 +1641,114 @@ public inherited sharing class VisitWizardV6Controller {
         if (visitId == null || !hasField('Opportunity', OPPORTUNITY_VISIT_FIELD)) {
             return summaries;
         }
+        Map<Id, OpportunitySummary> summariesById = new Map<Id, OpportunitySummary>();
         for (Opportunity opportunityRecord : Database.query(
-            'SELECT Id, Name, StageName, CloseDate, Amount FROM Opportunity WHERE Visit__c = :visitId WITH USER_MODE ORDER BY CreatedDate DESC'
+            'SELECT Id, Name, StageName, CloseDate, Amount FROM Opportunity WHERE ' +
+            OPPORTUNITY_VISIT_FIELD +
+            ' = :visitId WITH USER_MODE ORDER BY CreatedDate DESC'
         )) {
-            summaries.add(toOpportunitySummary(opportunityRecord));
+            OpportunitySummary summary = toOpportunitySummary(opportunityRecord);
+            summaries.add(summary);
+            summariesById.put(summary.opportunityId, summary);
         }
+        hydrateOpportunityProducts(summariesById);
         return summaries;
+    }
+
+    private static void hydrateOpportunityProducts(Map<Id, OpportunitySummary> summariesById) {
+        if (summariesById == null ||
+            summariesById.isEmpty() ||
+            !OpportunityLineItem.SObjectType.getDescribe(SObjectDescribeOptions.DEFERRED).isAccessible()) {
+            return;
+        }
+
+        Map<Id, List<String>> opportunityIdToProductNames = new Map<Id, List<String>>();
+        Set<String> seenKeys = new Set<String>();
+        try {
+            for (OpportunityLineItem lineItem : [
+                SELECT OpportunityId, PricebookEntry.Product2.Name
+                FROM OpportunityLineItem
+                WHERE OpportunityId IN :summariesById.keySet()
+                WITH USER_MODE
+                ORDER BY CreatedDate ASC
+            ]) {
+                String productName = lineItem.PricebookEntry == null || lineItem.PricebookEntry.Product2 == null
+                    ? null
+                    : lineItem.PricebookEntry.Product2.Name;
+                if (String.isBlank(productName)) {
+                    continue;
+                }
+                String key = lineItem.OpportunityId + ':' + productName;
+                if (seenKeys.contains(key)) {
+                    continue;
+                }
+                seenKeys.add(key);
+                if (!opportunityIdToProductNames.containsKey(lineItem.OpportunityId)) {
+                    opportunityIdToProductNames.put(lineItem.OpportunityId, new List<String>());
+                }
+                opportunityIdToProductNames.get(lineItem.OpportunityId).add(productName);
+            }
+        } catch (Exception ignored) {
+            return;
+        }
+
+        for (Id opportunityId : summariesById.keySet()) {
+            List<String> productNames = opportunityIdToProductNames.get(opportunityId);
+            OpportunitySummary summary = summariesById.get(opportunityId);
+            summary.productCount = productNames == null ? 0 : productNames.size();
+            summary.productNames = productNames == null || productNames.isEmpty() ? 'None' : String.join(productNames, ', ');
+        }
+    }
+
+    private static List<Id> topicContextProductIds(Id visitId) {
+        List<Id> productIds = new List<Id>();
+        if (visitId == null ||
+            Schema.getGlobalDescribe().get(GENERIC_VISIT_TASK_CONTEXT_OBJECT) == null ||
+            Schema.getGlobalDescribe().get(GENERIC_VISIT_TASK_CONTEXT_RELATION_OBJECT) == null) {
+            return productIds;
+        }
+
+        Set<Id> seenProductIds = new Set<Id>();
+        for (SObject relationRecord : Database.query(
+            'SELECT VisitTaskContext.ContextId ' +
+            'FROM GnrcVstTaskContextRelation ' +
+            'WHERE VisitTask.VisitId = :visitId ' +
+            'AND VisitTaskContext.ContextId != null ' +
+            'WITH USER_MODE'
+        )) {
+            SObject contextRecord = relationRecord.getSObject('VisitTaskContext');
+            if (contextRecord == null) {
+                continue;
+            }
+            Id productId = (Id) contextRecord.get('ContextId');
+            if (productId != null && String.valueOf(productId).startsWith('01t') && !seenProductIds.contains(productId)) {
+                productIds.add(productId);
+                seenProductIds.add(productId);
+            }
+        }
+        return productIds;
+    }
+
+    private static Id choosePricebookId(Id opportunityPricebookId, Map<Id, List<PricebookEntry>> entriesByPricebookId) {
+        if (opportunityPricebookId != null && entriesByPricebookId.containsKey(opportunityPricebookId)) {
+            return opportunityPricebookId;
+        }
+
+        Id bestPricebookId;
+        Integer bestEntryCount = -1;
+        for (Id pricebookId : entriesByPricebookId.keySet()) {
+            List<PricebookEntry> entries = entriesByPricebookId.get(pricebookId);
+            Boolean standardPricebook = !entries.isEmpty() && entries[0].Pricebook2.IsStandard;
+            Integer entryCount = entries.size();
+            if (bestPricebookId == null || standardPricebook || entryCount > bestEntryCount) {
+                bestPricebookId = pricebookId;
+                bestEntryCount = entryCount;
+                if (standardPricebook) {
+                    break;
+                }
+            }
+        }
+        return bestPricebookId;
     }
 
     private static OpportunitySummary toOpportunitySummary(Opportunity opportunityRecord) {
@@ -999,6 +1758,8 @@ public inherited sharing class VisitWizardV6Controller {
         summary.stageName = opportunityRecord.StageName;
         summary.closeDate = opportunityRecord.CloseDate;
         summary.amount = opportunityRecord.Amount;
+        summary.productCount = 0;
+        summary.productNames = 'None';
         return summary;
     }
 
@@ -1044,6 +1805,43 @@ public inherited sharing class VisitWizardV6Controller {
             notes.add(summary);
         }
         return notes;
+    }
+
+    private static List<TopicFileSummary> taskFiles(Id genericTaskId) {
+        List<TopicFileSummary> files = new List<TopicFileSummary>();
+        if (genericTaskId == null || Schema.getGlobalDescribe().get(CONTENT_DOCUMENT_LINK_OBJECT) == null) {
+            return files;
+        }
+
+        for (ContentDocumentLink linkRecord : [
+            SELECT ContentDocumentId,
+                   ContentDocument.Title,
+                   ContentDocument.FileType,
+                   ContentDocument.FileExtension,
+                   ContentDocument.ContentSize,
+                   ContentDocument.CreatedDate,
+                   ContentDocument.CreatedBy.Name
+            FROM ContentDocumentLink
+            WHERE LinkedEntityId = :genericTaskId
+            AND ContentDocument.FileType != 'SNOTE'
+            WITH USER_MODE
+            ORDER BY ContentDocument.CreatedDate DESC
+            LIMIT 50
+        ]) {
+            TopicFileSummary summary = new TopicFileSummary();
+            summary.contentDocumentId = linkRecord.ContentDocumentId;
+            summary.title = linkRecord.ContentDocument == null ? null : linkRecord.ContentDocument.Title;
+            summary.fileExtension = linkRecord.ContentDocument == null ? null : linkRecord.ContentDocument.FileExtension;
+            summary.fileType = linkRecord.ContentDocument == null ? null : linkRecord.ContentDocument.FileType;
+            summary.contentSize = linkRecord.ContentDocument == null ? null : linkRecord.ContentDocument.ContentSize;
+            summary.createdDate = linkRecord.ContentDocument == null ? null : linkRecord.ContentDocument.CreatedDate;
+            summary.createdByName = linkRecord.ContentDocument == null || linkRecord.ContentDocument.CreatedBy == null
+                ? null
+                : linkRecord.ContentDocument.CreatedBy.Name;
+            summary.fileName = fileDisplayName(summary.title, summary.fileExtension);
+            files.add(summary);
+        }
+        return files;
     }
 
     @TestVisible
@@ -1183,6 +1981,36 @@ public inherited sharing class VisitWizardV6Controller {
         ];
         if (contactCount != uniqueIds.size()) {
             throw userError('Visited parties must be contacts on the selected Account.');
+        }
+    }
+
+    @TestVisible
+    private static void insertAdditionalTaskRelations(Id taskId, List<Id> contactIds) {
+        if (taskId == null || contactIds == null || contactIds.size() <= 1) {
+            return;
+        }
+
+        Schema.SObjectType relationType = Schema.getGlobalDescribe().get('TaskRelation');
+        if (relationType == null || !relationType.getDescribe(SObjectDescribeOptions.DEFERRED).isCreateable()) {
+            return;
+        }
+
+        List<SObject> relationRows = new List<SObject>();
+        for (Integer contactIndex = 1; contactIndex < contactIds.size(); contactIndex++) {
+            Id contactId = contactIds[contactIndex];
+            if (contactId == null) {
+                continue;
+            }
+            SObject relationRecord = relationType.newSObject();
+            relationRecord.put('TaskId', taskId);
+            relationRecord.put('RelationId', contactId);
+            if (hasField('TaskRelation', 'IsWhat')) {
+                relationRecord.put('IsWhat', false);
+            }
+            relationRows.add(relationRecord);
+        }
+        if (!relationRows.isEmpty()) {
+            Database.insert(Security.stripInaccessible(AccessType.CREATABLE, relationRows).getRecords(), AccessLevel.USER_MODE);
         }
     }
 
@@ -1433,6 +2261,32 @@ public inherited sharing class VisitWizardV6Controller {
     @TestVisible
     private static String blankToNull(Object value) {
         return value == null || String.isBlank(String.valueOf(value)) ? null : String.valueOf(value);
+    }
+
+    @TestVisible
+    private static String fileTitle(String fileName) {
+        String title = String.isBlank(fileName) ? 'Topic File' : fileName;
+        Integer extensionIndex = title.lastIndexOf('.');
+        if (extensionIndex > 0) {
+            title = title.substring(0, extensionIndex);
+        }
+        return String.isBlank(title) ? 'Topic File' : title;
+    }
+
+    @TestVisible
+    private static String filePath(String fileName) {
+        return String.isBlank(fileName) ? 'TopicFile' : fileName;
+    }
+
+    @TestVisible
+    private static String fileDisplayName(String title, String extension) {
+        if (String.isBlank(title)) {
+            return 'File';
+        }
+        if (String.isBlank(extension) || title.toLowerCase().endsWith('.' + extension.toLowerCase())) {
+            return title;
+        }
+        return title + '.' + extension;
     }
 
     @TestVisible

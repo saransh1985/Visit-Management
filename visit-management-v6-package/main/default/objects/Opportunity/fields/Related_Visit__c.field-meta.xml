@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Related_Visit__c</fullName>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <description>Standard Automotive Cloud Visit that originated this Opportunity from the Visit Management V7 flow.</description>
+    <externalId>false</externalId>
+    <label>Visit</label>
+    <referenceTo>Visit</referenceTo>
+    <relationshipLabel>Related Visit Opportunities</relationshipLabel>
+    <relationshipName>Related_Visit_Opportunities</relationshipName>
+    <required>false</required>
+    <trackFeedHistory>false</trackFeedHistory>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>
